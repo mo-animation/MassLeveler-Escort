@@ -4,6 +4,7 @@ Run:  py manager/mass_leveler.py            (or double-click MassLeveler.bat)
 """
 import ctypes
 import importlib.util
+import math
 import os
 import queue
 import shutil
@@ -16,6 +17,7 @@ from tkinter import filedialog, messagebox, simpledialog, ttk
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import ml_core  # noqa: E402
+import ml_map  # noqa: E402
 
 COLUMNS = ('level', 'exp', 'zone', 'area', 'state')
 HEADINGS = {'level': 'Lv', 'exp': 'EXP %', 'zone': 'Zone', 'area': 'Training area', 'state': 'State'}
@@ -541,6 +543,309 @@ class SettingsDialog:
         self.top.destroy()
 
 
+class MapTab:
+    """Standard mode: phBot's minimap with the open characters. Pick characters (the list, or click a dot; Ctrl
+    adds), then click the map: they walk there by phBot's own route (the plugin, -mlstandard). Drag = move the
+    map, wheel = zoom, right-click = Navigate / Storage / Teleport / NPC ... like phBot's map."""
+
+    ZOOMS = (0.25, 0.375, 0.5, 0.75, 1.0, 1.5, 2.0)
+
+    def __init__(self, app, parent):
+        self.app = app
+        self.data = None            # ml_map.MapData, read on first show
+        self.cx, self.cy, self.zi = 6440.0, 1100.0, 4           # Jangan, tiles at their own size
+        self.tiles = {}             # (rx, ry, size) -> PhotoImage
+        self.sel = set()            # picked characters
+        self.press = None
+        self.listed = None          # characters in the list now
+        self.mouse = None           # world point under the mouse
+        self.centered = False
+        f = self.frame = ttk.Frame(parent)
+        bar = ttk.Frame(f, padding=(0, 4))
+        bar.pack(fill='x')
+        ttk.Button(bar, text='Center on selected', command=self.center_selected).pack(side='left')
+        ttk.Button(bar, text='Stop walking', command=self.stop_walk).pack(side='left', padx=4)
+        ttk.Label(bar, foreground=DARK['dim'], text='Click: walk there   Drag: move   Wheel: zoom   Right-click: more'
+                  ).pack(side='left', padx=12)
+        self.lbl = ttk.Label(bar, foreground=DARK['dim'])
+        self.lbl.pack(side='right')
+        body = ttk.PanedWindow(f, orient='horizontal')
+        body.pack(fill='both', expand=True)
+        left = ttk.Frame(body)
+        ttk.Label(left, text='Characters (Ctrl = more)', foreground=DARK['dim']).pack(anchor='w', pady=(0, 2))
+        self.list = ttk.Treeview(left, show='tree', selectmode='extended')
+        self.list.column('#0', width=170)
+        self.list.pack(fill='both', expand=True)
+        self.list.tag_configure('group', font=('Segoe UI', 9, 'bold'))
+        self.list.bind('<<TreeviewSelect>>', self.on_list)
+        body.add(left, weight=0)
+        self.cv = tk.Canvas(body, bg='#10161a', highlightthickness=0, cursor='crosshair')
+        body.add(self.cv, weight=1)
+        for ev, fn in (('<ButtonPress-1>', self.on_press), ('<B1-Motion>', self.on_move), ('<ButtonRelease-1>', self.on_release),
+                       ('<MouseWheel>', self.on_wheel), ('<Button-3>', self.on_menu), ('<Motion>', self.on_hover),
+                       ('<Configure>', lambda e: self.draw())):
+            self.cv.bind(ev, fn)
+
+    # -------------------------------------------------- data
+    def open_members(self):
+        """(group, character) of every open bot with a position"""
+        return [(g, m) for g in self.app.mgr.groups for m in g.all_members
+                if self.app.mgr._alive(m) and (m.status.get('pos') or (0,))[0]]
+
+    def picked(self):
+        return [m for g, m in self.open_members() if m.character in self.sel]
+
+    def show(self):
+        if self.data is None:
+            s = self.app.mgr.s
+            try:
+                self.data = ml_map.MapData(s['phbot_dir'], s['server'])
+            except Exception as e:
+                self.data = ml_map.MapData('', '')
+                self.app._log('Map: phBot game data not read: %s' % e)
+            if not os.path.isdir(self.data.tiles):
+                self.app._log('Map: no minimap folder in ' + s['phbot_dir'])
+        self.refresh()
+
+    def refresh(self):
+        members = self.open_members()
+        names = tuple((g.gid, m.character) for g, m in members)
+        if names != self.listed:
+            self.listed = names
+            self.list.delete(*self.list.get_children())
+            for g in self.app.mgr.groups:
+                mine = [m for gg, m in members if gg is g]
+                if mine:
+                    self.list.insert('', 'end', iid=g.gid, text=' ' + g.gid, open=True, tags=('group',))
+                    for m in mine:
+                        self.list.insert(g.gid, 'end', iid='c|' + m.character, text=' ' + m.character)
+            self.sel &= {m.character for g, m in members}
+            self.select_list()
+        if not self.centered and members:
+            self.centered = True
+            self.center_on([m for g, m in members])
+        self.draw()
+
+    def select_list(self):
+        self.syncing = True
+        self.list.selection_set(['c|' + n for n in self.sel if self.list.exists('c|' + n)])
+        self.syncing = False
+
+    def on_list(self, e):
+        if getattr(self, 'syncing', False):
+            return
+        sel = set()
+        for iid in self.list.selection():
+            if iid.startswith('c|'):
+                sel.add(iid[2:])
+            else:       # a group: all its characters
+                sel.update(c[2:] for c in self.list.get_children(iid))
+        self.sel = sel
+        self.draw()
+
+    # -------------------------------------------------- drawing
+    def scale(self):
+        return ml_map.TILE * self.ZOOMS[self.zi] / ml_map.REGION       # pixels per game unit
+
+    def to_screen(self, x, y):
+        p = self.scale()
+        return self.cv.winfo_width() / 2 + (x - self.cx) * p, self.cv.winfo_height() / 2 - (y - self.cy) * p
+
+    def to_world(self, sx, sy):
+        p = self.scale()
+        return self.cx + (sx - self.cv.winfo_width() / 2) / p, self.cy - (sy - self.cv.winfo_height() / 2) / p
+
+    def tile(self, rx, ry, size):
+        key = (rx, ry, size)
+        if key not in self.tiles:
+            if len(self.tiles) > 400:
+                self.tiles.clear()
+            path = self.data.tile_path(rx, ry) if self.data else None
+            img = None
+            if path:
+                try:
+                    from PIL import Image, ImageTk
+                    img = ImageTk.PhotoImage(Image.open(path).convert('RGB').resize((size, size)))
+                except Exception:
+                    img = None
+            self.tiles[key] = img
+        return self.tiles[key]
+
+    def draw(self):
+        cv = self.cv
+        w, h = cv.winfo_width(), cv.winfo_height()
+        if w < 10 or self.data is None:
+            return
+        cv.delete('all')
+        size = int(round(ml_map.TILE * self.ZOOMS[self.zi]))
+        x0, y1 = self.to_world(0, 0)
+        x1, y0 = self.to_world(w, h)
+        (rx0, ry0), (rx1, ry1) = ml_map.tile_of(x0, y0), ml_map.tile_of(x1, y1)
+        for rx in range(rx0, rx1 + 1):
+            for ry in range(ry0, ry1 + 1):
+                img = self.tile(rx, ry, size + 1)       # 1 pixel over the next tile: no seams from rounding
+                if img:
+                    ox, oy = ml_map.tile_origin(rx, ry)
+                    sx, sy = self.to_screen(ox, oy + ml_map.REGION)
+                    cv.create_image(int(math.floor(sx)), int(math.floor(sy)), image=img, anchor='nw')
+        p = self.scale()
+        for g, m in self.open_members():
+            region, x, y = m.status['pos']
+            if region >= 0x8000:
+                continue                # caves: no tiles
+            sx, sy = self.to_screen(x, y)
+            picked = m.character in self.sel
+            t = m.status.get('train')
+            if picked and t and (t[1] or t[2]) and t[3]:
+                tx, ty = self.to_screen(t[1], t[2])
+                cv.create_oval(tx - t[3] * p, ty - t[3] * p, tx + t[3] * p, ty + t[3] * p, outline='#2f6fd8')
+            color = DARK['bad'] if m.status.get('dead') else '#64b5f6' if picked else '#9ccc65'
+            cv.create_rectangle(sx - 4, sy - 4, sx + 4, sy + 4, fill=color, outline='#ffffff' if picked else '#000000')
+            if picked:
+                cv.create_text(sx + 8, sy, text=m.character, anchor='w', fill='#ffffff', font=('Segoe UI', 8))
+        self.show_label()
+
+    def show_label(self):
+        x, y = self.mouse or (self.cx, self.cy)
+        self.lbl.config(text='%s   %.0f, %.0f   %d selected' % (self.data.zone(x, y) if self.data else '', x, y,
+                                                                 len(self.sel)))
+
+    def center_on(self, members):
+        pts = [m.status['pos'] for m in members if m.status.get('pos') and m.status['pos'][0] < 0x8000]
+        if pts:
+            self.cx, self.cy = sum(p[1] for p in pts) / len(pts), sum(p[2] for p in pts) / len(pts)
+            self.draw()
+
+    def center_selected(self):
+        self.center_on(self.picked() or [m for g, m in self.open_members()])
+
+    # -------------------------------------------------- mouse
+    def hit(self, sx, sy):
+        best = None
+        for g, m in self.open_members():
+            region, x, y = m.status['pos']
+            dx, dy = self.to_screen(x, y)
+            d = abs(dx - sx) + abs(dy - sy)
+            if d <= 9 and (best is None or d < best[0]):
+                best = (d, m)
+        return best[1] if best else None
+
+    def on_press(self, e):
+        self.press = (e.x, e.y, self.cx, self.cy, False)
+
+    def on_move(self, e):
+        if not self.press:
+            return
+        x0, y0, cx, cy, moved = self.press
+        if moved or abs(e.x - x0) + abs(e.y - y0) > 4:
+            self.press = (x0, y0, cx, cy, True)
+            p = self.scale()
+            self.cx, self.cy = cx - (e.x - x0) / p, cy + (e.y - y0) / p
+            self.cv.configure(cursor='fleur')
+            self.draw()
+
+    def on_release(self, e):
+        press, self.press = self.press, None
+        self.cv.configure(cursor='crosshair')
+        if not press or press[4]:
+            return
+        m = self.hit(e.x, e.y)
+        if m:                           # a character: pick it (Ctrl: add / remove)
+            if e.state & 0x4:
+                self.sel ^= {m.character}
+            else:
+                self.sel = {m.character}
+            self.select_list()
+            self.draw()
+        else:
+            self.navigate(*self.to_world(e.x, e.y))
+
+    def on_wheel(self, e):
+        before = self.to_world(e.x, e.y)
+        self.zi = max(0, min(len(self.ZOOMS) - 1, self.zi + (1 if e.delta > 0 else -1)))
+        after = self.to_world(e.x, e.y)
+        self.cx += before[0] - after[0]
+        self.cy += before[1] - after[1]
+        self.draw()
+
+    def on_hover(self, e):
+        self.mouse = self.to_world(e.x, e.y)
+        if self.data is not None:
+            self.show_label()
+
+    # -------------------------------------------------- commands
+    def members_or_tell(self):
+        members = self.picked()
+        if not members:
+            messagebox.showinfo('Map', 'Pick characters first: the list on the left, or click their dots.',
+                                parent=self.app.root)
+        return members
+
+    def navigate(self, x, y, then=(), members=None):
+        members = members or self.members_or_tell()
+        if members:
+            self.app.mgr.map_command(members, 'navigate', region=ml_map.region_of(x, y), x=round(x, 1), y=round(y, 1),
+                                     z=0, then=list(then))
+
+    def stop_walk(self):
+        members = self.picked() or [m for g, m in self.open_members()]
+        if members:
+            self.app.mgr.map_command(members, 'stop_walk')
+
+    def on_menu(self, e):
+        x, y = self.to_world(e.x, e.y)
+        members = self.picked()
+        on = bool(members)
+        menu = tk.Menu(self.app.root, tearoff=0)
+        it = lambda m, label, fn, enabled=on: self.app.add_item(m, label, fn, enabled)
+        it(menu, 'Navigate  (%d selected)' % len(members), lambda: self.navigate(x, y, members=members))
+        it(menu, 'Copy Coordinates', lambda: self.copy(x, y), True)
+        it(menu, 'Set Training Area', lambda: self.app.mgr.bot_command(members, 'set_training_area', region=0, x=x, y=y,
+                                                                       z=0))
+        menu.add_separator()
+        st = self.data.storage_near(x, y) if self.data else None
+        it(menu, 'Access Storage' + ('  (%s)' % st['name'] if st else ''),
+           lambda: self.navigate(st['x'], st['y'], ['DoStorage'], members), on and bool(st))
+        am = tk.Menu(menu, tearoff=0)
+        cmd = lambda name, **kw: (lambda: self.app.mgr.bot_command(members, name, **kw))
+        it(am, 'Styria', cmd('styria'))
+        it(am, 'Capture the Flag', cmd('arena', kind='capture_the_flag'))
+        for kind in ('job', 'random', 'party', 'guild'):
+            for mode in ('ctf', 'points'):
+                it(am, '%s (%s)' % (kind.title(), 'CTF' if mode == 'ctf' else 'Points'), cmd('arena', kind=kind, mode=mode))
+        menu.add_cascade(label='     Arena', menu=am)
+        tm = tk.Menu(menu, tearoff=0)
+        for t in (self.data.teleports_near(x, y, 300) if self.data else [])[:8]:
+            sub = tk.Menu(tm, tearoff=0)
+            for dest in t['dests']:
+                it(sub, dest, lambda t=t, dest=dest: self.navigate(t['x'], t['y'], ['teleport,%s,%s' % (t['name'], dest)],
+                                                                  members))
+            tm.add_cascade(label='     ' + t['name'], menu=sub)
+        if tm.index('end') is None:
+            it(tm, 'No teleporter near here', None, False)
+        menu.add_cascade(label='     Teleport', menu=tm)
+        npcs = self.data.npcs_near(x, y, 300)[:30] if self.data else []
+        nm = tk.Menu(menu, tearoff=0)
+        for n in npcs:
+            it(nm, n['name'], lambda n=n: self.navigate(n['x'], n['y'], members=members))
+        if not npcs:
+            it(nm, 'No NPC near here', None, False)
+        menu.add_cascade(label='     NPC', menu=nm)
+        close = [n for n in npcs if math.hypot(n['x'] - x, n['y'] - y) <= 30][:4]      # right where you clicked
+        if close:
+            menu.add_separator()
+            for n in close:
+                it(menu, n['name'], lambda n=n: self.navigate(n['x'], n['y'], members=members))
+        try:
+            menu.tk_popup(e.x_root, e.y_root)
+        finally:
+            menu.grab_release()
+
+    def copy(self, x, y):
+        self.app.root.clipboard_clear()
+        self.app.root.clipboard_append('%d,%.0f,%.0f' % (ml_map.region_of(x, y), x, y))
+
+
 class App:
     def __init__(self, root, mode='mass'):
         self.root = root
@@ -573,7 +878,15 @@ class App:
 
         pan = ttk.PanedWindow(root, orient='vertical')
         pan.pack(fill='both', expand=True, padx=6, pady=(0, 6))
-        frame = ttk.Frame(pan)
+        # tabs (more can be added): the characters, and in Standard mode phBot's map
+        self.tabs = ttk.Notebook(pan)
+        frame = ttk.Frame(self.tabs)
+        self.tabs.add(frame, text='Characters')
+        self.map = None
+        if self.standard:
+            self.map = MapTab(self, self.tabs)
+            self.tabs.add(self.map.frame, text='Map')
+            self.tabs.bind('<<NotebookTabChanged>>', lambda e: self.map_shown() and self.map.show())
         self.img_on, self.img_off = box_image(True), box_image(False)
         self.tree = ttk.Treeview(frame, columns=COLUMNS, selectmode='browse')
         self.tree.heading('#0', text='Group / character', anchor='w')
@@ -594,7 +907,7 @@ class App:
         for tag, color in (('done', 'done'), ('bad', 'bad'), ('escort', 'escort'), ('skipped', 'dim')):
             self.tree.tag_configure(tag, foreground=DARK[color])
         self.tree.tag_configure('group', font=('Segoe UI', 9, 'bold'))
-        pan.add(frame, weight=4)
+        pan.add(self.tabs, weight=4)
 
         logf = ttk.Frame(pan)
         self.logbox = tk.Text(logf, height=8, wrap='none', font=('Consolas', 9), bg=DARK['panel'], fg=DARK['fg'],
@@ -1202,8 +1515,13 @@ class App:
         self.lbl_summary.config(text=' · '.join('%d %s' % (counts[k], k) for k in (
             'running', 'launching', 'pending', 'done', 'stopped', 'failed', 'skipped') if counts.get(k)))
         self.lbl_dot.config(foreground=DARK['done'] if self.mgr.running else DARK['dim'])
+        if self.map_shown():
+            self.map.refresh()
         if schedule:
             self.root.after(2000, self.refresh)
+
+    def map_shown(self):
+        return bool(self.map) and self.tabs.select() == str(self.map.frame)
 
     def put(self, iid, parent, text, values, tags, image):
         """add a tree row, or draw it again only when what it shows changed"""

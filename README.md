@@ -25,6 +25,16 @@ MassLeveler.bat ──► manager (desktop dashboard)
   Standard keeps its own ticks, finished marks and Auto start list (`data/standard_*.json`) and its own settings
   (`settings.json` → `standard`): groups of 8, every bot on this PC's connection (no proxies).
 
+## Standard mode: the Map tab
+
+phBot's minimap (`<phBot>/minimap/<rx>x<ry>.jpg`) with the open characters (blue = picked, green = open, red =
+dead, circle = training area). Pick characters in the list or click their dots (Ctrl adds), click the map: they
+walk there by phBot's own route, teleports included (the plugin, started with `-mlstandard`, does what the map's
+Navigate does: `generate_script` + `start_script`). Drag moves the map, the wheel zooms. Right-click: Navigate,
+Copy Coordinates, Set Training Area, Access Storage (walk to the nearest Storage-Keeper, then phBot's `DoStorage`),
+Arena, Teleport (walk to the teleporter, then `teleport,<from>,<to>`), NPC (walk to it). NPCs and teleporters
+come from phBot's game database (`Data/<id>.db3` of the server in `vSRO.json`).
+
 ## Arranging groups by hand
 
 Drag a character onto another group (its row or one of its characters), or onto empty space (or right-click →

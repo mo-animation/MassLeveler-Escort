@@ -46,7 +46,7 @@ import struct
 import time
 
 pName = 'MassLeveler'
-pVersion = '2.5.0-escort'
+pVersion = '2.6.0-escort'
 
 LEARN_SECONDS = 10
 IGNORE_OPCODES = {0x2002, 0x7021, 0x7074, 0x7034}   # ping, movement, attack/skill, inventory move
@@ -78,6 +78,7 @@ ESCORT_RES_WAIT = 2.0       # dead escort: town after this, then reverse straigh
 
 # ---------------------------------------------------------------- runtime state
 group_id = ''
+standard_mode = False         # -mlstandard: the manager's Standard mode, map commands only
 my_char = ''
 group = None                 # dict from groups/<id>.json
 joined_at = 0.0
@@ -221,7 +222,7 @@ def save_macros():
 
 # ---------------------------------------------------------------- command line
 def parse_args():
-    global group_id, my_char, my_passcode
+    global group_id, my_char, my_passcode, standard_mode
     args = get_command_line_args() or []
     for i, a in enumerate(args):
         low = a.lower()
@@ -231,6 +232,8 @@ def parse_args():
             my_char = args[i + 1].strip().strip('"')
         elif low == '--passcode' and i + 1 < len(args):
             my_passcode = args[i + 1].strip().strip('"')
+        elif low == '-mlstandard':
+            standard_mode = True
 
 
 def group_file():
@@ -977,15 +980,65 @@ def write_status(d):
 
 def read_command():
     """the manager's latest command; one written before this plugin started (an old Stop from the last run)
-    is not for this run"""
-    global last_cmd_id
+    is not for this run. Its arguments go to last_cmd_args."""
+    global last_cmd_id, last_cmd_args
     c = _read_json(base_dir() + 'commands/' + my_char + '.json')
     if not c or c.get('id') == last_cmd_id:
         return None
     last_cmd_id = c.get('id')
     if isinstance(c.get('id'), (int, float)) and c['id'] < PLUGIN_STARTED:
         return None
+    last_cmd_args = c.get('args') or {}
     return c.get('cmd')
+
+
+# ---------------------------------------------------------------- Standard mode (-mlstandard): the manager's map
+# Only these commands, no leveling: navigate = phBot's own route (as its map's Navigate, teleports included, the
+# way MoJobSuit's walk does it), then the lines in 'then' (DoStorage, teleport,<from>,<to>); stop_walk.
+last_cmd_args = {}
+nav = {'stop': False}
+
+
+def nav_walk(region, x, y, z, then):
+    nav['stop'] = False
+    if region is None:
+        region = (get_position() or {}).get('region', 0)
+    lines = None
+    for attempt in range(4):
+        lines = generate_script(int(region), float(x), float(y), float(z))
+        if lines is None:
+            _log('Map: phBot found no route to %.0f, %.0f' % (x, y))
+            return
+        if lines is not False:          # False = asked again within 5 s
+            break
+        end = time.time() + 5.5
+        while time.time() < end:
+            if nav['stop']:
+                return
+            time.sleep(0.2)
+    if not lines:
+        _log('Map: phBot made no route (not in the game?)')
+        return
+    stop_bot()                          # the bot would walk back to its training area
+    stop_script()
+    start_script('\n'.join(list(lines) + list(then)))
+    _log('Map: walking to %.0f, %.0f%s' % (x, y, ('  then ' + ' / '.join(then)) if then else ''))
+
+
+def standard_tick():
+    global last_tick
+    now = time.time()
+    if now - last_tick < 0.5:
+        return
+    last_tick = now
+    cmd = read_command()
+    if cmd == 'navigate':
+        a = last_cmd_args
+        Timer(0.0, nav_walk, (a.get('region'), a['x'], a['y'], a.get('z', 0), a.get('then') or [])).start()
+    elif cmd == 'stop_walk':
+        nav['stop'] = True
+        stop_script()
+        _log('Map: walk stopped')
 
 
 def in_town(d):
@@ -1337,6 +1390,9 @@ def event_loop():
         learning_until = 0
         _log('Learning finished - select the collect packet(s) and add them to the sequence')
 
+    if standard_mode:
+        standard_tick()
+        return
     if not group:
         return
     now = time.time()
@@ -1485,5 +1541,7 @@ if group_id:
         _log('v%s loaded for %s in group %s' % (pVersion, my_char, group_id))
     else:
         _log('Group file %sgroups/%s.json not found' % (base_dir(), group_id))
+elif standard_mode:
+    _log('v%s loaded for %s - Standard mode: map commands only' % (pVersion, my_char))
 else:
     _log('v%s loaded (idle - no -mlgroup argument)' % pVersion)

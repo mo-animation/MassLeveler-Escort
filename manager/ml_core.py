@@ -790,8 +790,9 @@ class PhBotFiles:
                    {'name': char, 'level': st.get('level', 1), 'state': 'queued', 'pid': None, 'ts': 0,
                     'collected_levels': st.get('collected_levels', [])})
 
-    def command(self, char, cmd):
-        write_json(os.path.join(self.shared, 'commands', char + '.json'), {'id': time.time(), 'cmd': cmd})
+    def command(self, char, cmd, args=None):
+        write_json(os.path.join(self.shared, 'commands', char + '.json'), {'id': time.time(), 'cmd': cmd,
+                                                                           'args': args or {}})
 
     def write_group(self, g, plan, builds):
         s = self.s
@@ -967,8 +968,7 @@ def build_command(s, g, m, proxy, standard=False):
         if proxy.get('user'):
             cmd += ['--proxyuser', proxy['user'], '--proxypass', proxy.get('pass', '')]
     cmd += list(s['extra_args'])
-    if not standard:
-        cmd.append('-mlgroup=' + g.gid)
+    cmd.append('-mlstandard' if standard else '-mlgroup=' + g.gid)     # Standard: the plugin takes map commands only
     return cmd
 
 
@@ -1045,8 +1045,7 @@ class Manager:
         with self.lock:
             self.s = load_settings(self.settings_path, self.mode)
             self.files = PhBotFiles(self.s)
-            if not self.standard:
-                self.install_plugin()
+            self.install_plugin()       # Standard too: its bots walk the Map's routes with it (-mlstandard)
             self.progress_path = path_in_root(self.s['progress'])
             self.progress = read_json(self.progress_path, {}) or {}
             for ch, v in list(self.progress.items()):   # "Stop at level" raised: finished characters go on
@@ -1751,6 +1750,16 @@ class Manager:
                 g.state, g.message = 'launching', ''
         self._ensure_loop()
 
+    def map_command(self, members, cmd, **args):
+        """Standard Map: 'navigate' (region, x, y, z, then = script lines after the route) / 'stop_walk', done by
+        the plugin of each bot (started with -mlstandard)"""
+        for m in members:
+            self.files.command(m.character, cmd, args)
+        self.log('%s -> %s %s' % (', '.join(m.character for m in members), cmd,
+                                  ('%.0f, %.0f' % (args['x'], args['y'])) + (('  then ' + ' / '.join(args['then']))
+                                                                            if args.get('then') else '')
+                                  if 'x' in args else ''))
+
     def set_auto_start(self, members, on):
         """Auto start: the bot opens again whenever it closes by itself (not when closed from here)"""
         with self.lock:
@@ -1835,7 +1844,8 @@ class Manager:
             return {'level': last, 'state': 'starting' if alive else 'opening again' if m.reopen_at else
                     'waiting to open' if m.queued else 'closed' if m.launched_at else ''}
         t = live['training']
-        return {'level': live['level'] or last, 'zone': live['zone'], 'dead': live['dead'],
+        return {'level': live['level'] or last, 'zone': live['zone'], 'dead': live['dead'], 'in_game': live['in_game'],
+                'pos': (live['region'], live['x'], live['y']), 'train': t,      # for the Map
                 'exp_pct': '%.2f' % (100.0 * live['exp'] / live['level_exp']) if live['level_exp'] else '',
                 'area': '%.0f, %.0f' % (t[1], t[2]) if t[1] or t[2] else '',
                 'state': 'botting' if live['botting'] else 'tracing' if live['tracing'] else
