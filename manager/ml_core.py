@@ -61,6 +61,9 @@ DEFAULT_SETTINGS = {
     'final_level': 101,
     'party_invite_type': 3,
     'max_parallel_groups': 1,
+    # Mass Leveler: the first characters keep the groups they played in before the escort led the party
+    # (fnuk01-40 in groups of 8, G001-G005); the next ones are in groups of 7 + the escort
+    'first_groups': {'characters': 40, 'size': 8},
     'use_direct_ip': True,
     'launch_delay_seconds': 15,
     'stale_minutes': 10,
@@ -694,9 +697,13 @@ def load_groups(s, progress, skip=None, escort_party=False):
     for gid, members in explicit.items():
         groups.append(Group('G-' + gid, members))
     size = group_size(s, escort_party and bool(escort))
-    for i in range(0, len(ordered), size):
-        chunk = ordered[i:i + size]
-        groups.append(Group('G%03d' % (i // size + 1), chunk))
+    # groups that played before the escort led the party keep their size (first_groups); the rest come after
+    first = (s.get('first_groups') or {}) if escort_party and escort else {}
+    keep = min(int(first.get('characters', 0)), len(ordered))
+    chunks = [ordered[i:i + int(first.get('size', size))] for i in range(0, keep, int(first.get('size', size)))]
+    chunks += [ordered[i:i + size] for i in range(keep, len(ordered), size)]
+    for i, chunk in enumerate(chunks):
+        groups.append(Group('G%03d' % (i + 1), chunk))
     comp = composition(s)
     for g in groups:
         for i, m in enumerate(g.all_members):        # a character keeps its slot's build when others are skipped
@@ -838,7 +845,7 @@ class PhBotFiles:
         party['AutoFormParty'] = False
         party['Accept All Invites'] = False
         party['Invite All Players'] = False
-        escort = self.s.get('escort_name')
+        escort = self.s.get('escort_name') if len(g.members) < PARTY_MAX else ''   # 8 + escort: own party
         if escort:      # the escort is the party leader: it invites, the group accepts only from it
             party.update({'AutoInviteParty': False, 'Invite From List': False,
                           'AutoAcceptParty': True, 'Accept Invites From List': True,
@@ -1090,8 +1097,10 @@ class Manager:
     def escort_group(self):
         return next((g for g in getattr(self, 'groups', []) if g.escort and g.members), None)
 
-    def group_characters(self):
-        return [m.character for g in self.groups if g.state != 'skipped' and not g.escort for m in g.members]
+    def group_characters(self, party=False):
+        """party = only groups the escort's party has room for (an old group of 8 has its own party)"""
+        return [m.character for g in self.groups if g.state != 'skipped' and not g.escort
+                and not (party and len(g.members) >= PARTY_MAX) for m in g.members]
 
     def update_escort_party(self):
         """the escort's phBot profile (the one it uses now): party leader, auto-invites every group character
@@ -1114,7 +1123,7 @@ class Manager:
         res = prof.setdefault('Auto Resurrect', {})
         # the escort is the party leader: it invites the characters of the groups (one group plays at a time)
         want = {'AutoUnionPartyInvite': False, 'AcceptUnionPartyInvites': False, 'UnionPartyInvite': []}
-        want_party = {'AutoInviteParty': True, 'Invite From List': True, 'InviteList': self.group_characters(),
+        want_party = {'AutoInviteParty': True, 'Invite From List': True, 'InviteList': self.group_characters(party=True),
                       'AutoAcceptParty': False, 'Accept Invites From List': False, 'Accept All Invites': False,
                       'Invite All Players': False, 'AutoFormParty': False, 'Party Leader Names': [],
                       'LeaveIfLeaderNotInList': False, 'PartyInviteType': self.s['party_invite_type']}

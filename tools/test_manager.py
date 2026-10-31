@@ -452,7 +452,7 @@ with open(os.path.join(TMP, 'accounts_esc.csv'), 'w', encoding='utf-8') as f:
     f.write('username,password,passcode,character,group,notes,escort\nesc,pw,,wiz01,,,yes\n')
     for i in range(1, 17):
         f.write('u%02d,pw,,,,,\n' % i)
-esc_s = dict(settings, group_size=8, accounts_csv=os.path.join(TMP, 'accounts_esc.csv'),
+esc_s = dict(settings, group_size=8, accounts_csv=os.path.join(TMP, 'accounts_esc.csv'), first_groups={},
              progress=os.path.join(TMP, 'progress_esc.json'), skip=os.path.join(TMP, 'skip_esc.json'))
 json.dump(esc_s, open(os.path.join(TMP, 'settings_esc.json'), 'w'))
 esc_prof = dict(old, Party={'AutoInviteParty': False, 'InviteList': []},
@@ -474,6 +474,24 @@ check(eP['Party']['AutoInviteParty'] and eP['Party']['InviteList'] == [m.charact
       'the escort invites every group character into its party, union invites off')
 mgrES = ml_core.Manager(os.path.join(TMP, 'settings_esc.json'), log=lambda m: None, mode='standard')
 check([len(g.members) for g in mgrES.groups if not g.escort] == [8, 8], 'Standard mode keeps groups of 8')
+# groups that played before the escort led the party keep their 8 (fnuk01-40 on the user's PC); the 7s come after
+json.dump(dict(esc_s, first_groups={'characters': 8, 'size': 8}), open(os.path.join(TMP, 'settings_esc8.json'), 'w'))
+mgr8 = ml_core.Manager(os.path.join(TMP, 'settings_esc8.json'), log=lambda m: None)
+names8 = [m.character for g in mgr8.groups if not g.escort for m in g.members]
+check([(g.gid, g.members[0].character, len(g.members)) for g in mgr8.groups if not g.escort] ==
+      [('G001', names8[0], 8), ('G002', names8[8], 7), ('G003', names8[15], 1)],
+      'the first 8 keep their group of 8, the 7s start after them: %s' % [
+          (g.gid, g.members[0].character, len(g.members)) for g in mgr8.groups if not g.escort])
+g8 = mgr8.groups[1]
+mgr8.files.write_profile(g8, g8.members[1], mgr8.templates['ch_nuker'], mgr8.plan_for(g8))
+p8 = json.load(open(os.path.join(cfg, 'Elysian_%s.json' % g8.members[1].character)))['Party']
+check(p8['InviteList'] == [names8[0]] and p8['AutoAcceptParty'],
+      'a group of 8 has its own party (no room for the escort): its first character invites')
+mgr8.update_escort_party()
+check(json.load(open(os.path.join(cfg, 'Elysian_wiz01.json')))['Party']['InviteList'] == names8[8:],
+      'the escort invites only the groups of 7')
+mgr8S = ml_core.Manager(os.path.join(TMP, 'settings_esc8.json'), log=lambda m: None, mode='standard')
+check([len(g.members) for g in mgr8S.groups if not g.escort] == [8, 8], 'Standard is not affected')
 
 shutil.rmtree(TMP, ignore_errors=True)
 print('\n%d failure(s)' % len(failures))
