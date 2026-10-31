@@ -985,8 +985,12 @@ class App:
 
     def close_and_run(self, script, *args):
         """run a tools .bat in its own window and close; the bots keep running. The .bat is started directly:
-        'cmd /c' drops the quotes around a path with spaces when an argument is quoted too"""
-        subprocess.Popen([ml_core.path_in_root(script)] + list(args), cwd=ml_core.ROOT,
+        'cmd /c' drops the quotes around a path with spaces when an argument is quoted too. PyInstaller's own
+        variables stay out of its environment: the exe the .bat opens again would take this closed one for its
+        parent and stop ("invalid originating onefile parent process")."""
+        env = {k: v for k, v in os.environ.items() if not k.upper().startswith('_PYI_')}
+        env['PYINSTALLER_RESET_ENVIRONMENT'] = '1'
+        subprocess.Popen([ml_core.path_in_root(script)] + list(args), cwd=ml_core.ROOT, env=env,
                          creationflags=getattr(subprocess, 'CREATE_NEW_CONSOLE', 0))
         self.mgr.shutdown(kill=False)
         self.root.destroy()

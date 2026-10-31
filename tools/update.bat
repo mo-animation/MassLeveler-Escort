@@ -4,6 +4,10 @@ rem changed only on this PC are kept), then opens it again. The first time on a 
 rem needed and links the folder: the program files come from GitHub, settings.json, accounts.csv,
 rem proxies.csv and data\skip.json stay as they are. Argument 1 = git.exe when the program found it.
 cd /d "%~dp0.."
+rem PyInstaller's variables of the MassLeveler that started this window: the exe opened again at the end would
+rem take that closed one for its parent and stop ("invalid originating onefile parent process")
+for /f "delims==" %%v in ('set _PYI_ 2^>nul') do set "%%v="
+set PYINSTALLER_RESET_ENVIRONMENT=1
 set "REPO=https://github.com/mo-animation/MassLeveler-Escort.git"
 set "GIT=%~1"
 echo Waiting for MassLeveler Escort to close...
