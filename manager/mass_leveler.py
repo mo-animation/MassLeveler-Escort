@@ -888,13 +888,24 @@ class App:
     def on_update(self):
         """GitHub: pull the files changed there since the last update (git leaves every other file as it is).
         tools/update.bat does it once this window is closed (the running exe cannot be replaced), the bots
-        keep running and are taken over when it opens again"""
-        git = shutil.which('git') or r'C:\Program Files\Git\cmd\git.exe'
-        if not os.path.isfile(git) or not os.path.isdir(ml_core.path_in_root('.git')):
-            messagebox.showinfo('Update', 'This folder is not linked to GitHub yet (needs Git and the repository).')
-            return
-        run = lambda *a: subprocess.run([git] + list(a), cwd=ml_core.ROOT, capture_output=True, text=True,
+        keep running and are taken over when it opens again. On a PC without Git or the link it installs Git
+        and links the folder first."""
+        git = next((p for p in (shutil.which('git'), os.path.expandvars(r'%ProgramW6432%\Git\cmd\git.exe'),
+                                r'C:\Program Files\Git\cmd\git.exe',
+                                os.path.expandvars(r'%LOCALAPPDATA%\Programs\Git\cmd\git.exe'))
+                    if p and os.path.isfile(p)), None)
+        # safe.directory: git refuses a folder another Windows user (or a copy) owns
+        run = lambda *a: subprocess.run([git, '-c', 'safe.directory=*'] + list(a), cwd=ml_core.ROOT,
+                                        capture_output=True, text=True,
                                         creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0))
+        if not (git and os.path.isdir(ml_core.path_in_root('.git')) and
+                run('rev-parse', '-q', '--verify', '@{u}').returncode == 0):
+            if messagebox.askyesno('Update', 'First update on this PC: MassLeveler closes, Git is installed if it '
+                                   'is missing (click Yes if Windows asks), the program files come from GitHub '
+                                   'and MassLeveler opens again.\n\nsettings.json, accounts.csv, proxies.csv and '
+                                   'data\\skip.json stay as they are; running bots are left running.\n\nContinue?'):
+                self.close_and_run(r'tools\update.bat', git or '')
+            return
         r = run('fetch', '--quiet')
         if r.returncode:
             messagebox.showwarning('Update', 'Could not reach GitHub:\n' + (r.stderr or r.stdout)[-500:])
@@ -907,7 +918,12 @@ class App:
                                    'opens again by itself; running bots are left running.' % (
                                        len(files), '\n'.join(files[:20]) + ('\n...' if len(files) > 20 else ''))):
             return
-        subprocess.Popen(['cmd', '/c', ml_core.path_in_root(r'tools\update.bat'), git], cwd=ml_core.ROOT,
+        self.close_and_run(r'tools\update.bat', git)
+
+    def close_and_run(self, script, *args):
+        """run a tools .bat in its own window and close; the bots keep running. The .bat is started directly:
+        'cmd /c' drops the quotes around a path with spaces when an argument is quoted too"""
+        subprocess.Popen([ml_core.path_in_root(script)] + list(args), cwd=ml_core.ROOT,
                          creationflags=getattr(subprocess, 'CREATE_NEW_CONSOLE', 0))
         self.mgr.shutdown(kill=False)
         self.root.destroy()
