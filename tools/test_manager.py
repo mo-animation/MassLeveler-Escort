@@ -46,9 +46,6 @@ old['Skills']['sNormal'] = ['Shock Lion Shout']
 old['Lure']['LureWalkAmount'] = 4321
 old['Loop']['DontWalkAround'] = True
 json.dump(old, open(os.path.join(cfg_dir, 'Elysian_fnuk01.MLa.json'), 'w'))
-# your own character that holds the union: its default profile points at "Sabo", like phBot writes it
-json.dump({'Profile': 'Sabo'}, open(os.path.join(cfg_dir, 'Elysian_Death.json'), 'w'))
-json.dump(old, open(os.path.join(cfg_dir, 'Elysian_Death.Sabo.json'), 'w'))
 os.environ['CRASH_ONCE'] = 'fnuk05'
 os.environ['STUCK_ONCE'] = 'fnuk02'
 os.environ['DISCONNECT_ONCE'] = 'fnuk06'
@@ -111,12 +108,8 @@ check(lead['Scrolls']['ScrollsTracingOnly'] is True and lead['Scrolls']['Scrolls
       'ScrollsTracingOnly', 'Speed')) and lead['Berserk']['Full'],
       'scroll and berserk settings are reset from the template; escort: speed scroll while tracing (lowest < 52)')
 check(lead['Auto Resurrect']['ResurrectAllPartyMembers'] and lead['Town']['AutoAcceptRes'], 'party resurrect is on')
-death = json.load(open(os.path.join(cfg, 'Elysian_Death.Sabo.json')))['Union Party']
-check(death['AutoUnionPartyInvite'] and death['UnionPartyInvite'] == ['fnuk01', 'fnuk04'] and death['UnionPartyType'] == 3,
-      'Death (its current profile Sabo) auto-invites every group leader into its union, exp + item share')
-check(lead['Union Party']['AcceptUnionPartyInvites'] and lead['Union Party']['UnionPartyAccept'] == ['Death']
-      and lead['Union Party']['UnionPartyType'] == 3 and not mem['Union Party']['AcceptUnionPartyInvites'],
-      'the leader accepts the union of Death only; members do not join unions')
+check(not lead['Union Party']['AcceptUnionPartyInvites'] and not mem['Union Party']['AcceptUnionPartyInvites']
+      and not lead['Union Party']['AutoUnionPartyInvite'], 'no union party any more')
 check(lead['Loop']['DontWalkAround'] is False, 'bots walk around the training area (Don\'t walk around reset to off)')
 check(mem['Scrolls']['ScrollsTracingOnly'] is True and mem['Skills']['sNormal'] == [], 'a new character starts from the template')
 import sqlite3  # noqa: E402
@@ -453,6 +446,34 @@ time.sleep(5)
 check(not ml_core.Manager._alive(ch('fnuk01')) and sum(1 for l in slog if l.startswith('launch fnuk01')) == launches,
       'closed from here: not opened again, even with Auto start')
 mgrD.shutdown(kill=True)
+
+# the escort is the party leader: groups of 7, members accept only from it, it invites them (no union)
+with open(os.path.join(TMP, 'accounts_esc.csv'), 'w', encoding='utf-8') as f:
+    f.write('username,password,passcode,character,group,notes,escort\nesc,pw,,wiz01,,,yes\n')
+    for i in range(1, 17):
+        f.write('u%02d,pw,,,,,\n' % i)
+esc_s = dict(settings, group_size=8, accounts_csv=os.path.join(TMP, 'accounts_esc.csv'),
+             progress=os.path.join(TMP, 'progress_esc.json'), skip=os.path.join(TMP, 'skip_esc.json'))
+json.dump(esc_s, open(os.path.join(TMP, 'settings_esc.json'), 'w'))
+esc_prof = dict(old, Party={'AutoInviteParty': False, 'InviteList': []},
+                **{'Union Party': {'AutoUnionPartyInvite': True, 'UnionPartyInvite': ['x']}})
+json.dump(esc_prof, open(os.path.join(cfg, 'Elysian_wiz01.json'), 'w'))
+mgrE = ml_core.Manager(os.path.join(TMP, 'settings_esc.json'), log=lambda m: None)
+check([(g.gid, len(g.members)) for g in mgrE.groups] == [('ESCORT', 1), ('G001', 7), ('G002', 7), ('G003', 2)],
+      'with the escort a group is 7 (party of 8 with the escort): %s' % [(g.gid, len(g.members)) for g in mgrE.groups])
+gE = mgrE.groups[1]
+mgrE.files.write_profile(gE, gE.members[0], mgrE.templates['ch_nuker'], mgrE.plan_for(gE))
+pE = json.load(open(os.path.join(cfg, 'Elysian_%s.json' % gE.members[0].character)))
+check(not pE['Party']['AutoInviteParty'] and pE['Party']['AutoAcceptParty'] and pE['Party']['InviteList'] == ['wiz01']
+      and pE['Party']['Party Leader Names'] == ['wiz01'] and not pE['Union Party']['AcceptUnionPartyInvites'],
+      'even the first character of a group only accepts the escort\'s party, no union')
+mgrE.update_escort_party()
+eP = json.load(open(os.path.join(cfg, 'Elysian_wiz01.json')))
+check(eP['Party']['AutoInviteParty'] and eP['Party']['InviteList'] == [m.character for g in mgrE.groups[1:] for m in g.members]
+      and not eP['Party']['AutoAcceptParty'] and not eP['Union Party']['AutoUnionPartyInvite'],
+      'the escort invites every group character into its party, union invites off')
+mgrES = ml_core.Manager(os.path.join(TMP, 'settings_esc.json'), log=lambda m: None, mode='standard')
+check([len(g.members) for g in mgrES.groups if not g.escort] == [8, 8], 'Standard mode keeps groups of 8')
 
 shutil.rmtree(TMP, ignore_errors=True)
 print('\n%d failure(s)' % len(failures))

@@ -60,10 +60,6 @@ DEFAULT_SETTINGS = {
     'name_digits': 2,
     'final_level': 101,
     'party_invite_type': 3,
-    # union party: this character (your own bot) invites every group leader into its union; the leaders accept
-    # only from it. Type as the party type: 3 = exp share + item share. '' = no union
-    'union_master': 'Death',
-    'union_type': 3,
     'max_parallel_groups': 1,
     'use_direct_ip': True,
     'launch_delay_seconds': 15,
@@ -665,7 +661,16 @@ def hide_status_widgets():
     return len(found)
 
 
-def load_groups(s, progress, skip=None):
+PARTY_MAX = 8       # the game's party limit
+
+
+def group_size(s, escort_party):
+    """Mass Leveler with an escort: the escort is the party leader, so a group is one less than a party"""
+    size = max(1, int(s['group_size']))
+    return min(size, PARTY_MAX - 1) if escort_party else size
+
+
+def load_groups(s, progress, skip=None, escort_party=False):
     """skip = {'groups': [gid], 'characters': [name]} switched off in the dashboard"""
     skip = skip or {}
     rows = read_csv_rows(path_in_root(s['accounts_csv']))
@@ -688,7 +693,7 @@ def load_groups(s, progress, skip=None):
     groups = [Group(ESCORT_GID, escort)] if escort else []
     for gid, members in explicit.items():
         groups.append(Group('G-' + gid, members))
-    size = max(1, int(s['group_size']))
+    size = group_size(s, escort_party and bool(escort))
     for i in range(0, len(ordered), size):
         chunk = ordered[i:i + size]
         groups.append(Group('G%03d' % (i // size + 1), chunk))
@@ -833,7 +838,12 @@ class PhBotFiles:
         party['AutoFormParty'] = False
         party['Accept All Invites'] = False
         party['Invite All Players'] = False
-        if m.role == 'leader':
+        escort = self.s.get('escort_name')
+        if escort:      # the escort is the party leader: it invites, the group accepts only from it
+            party.update({'AutoInviteParty': False, 'Invite From List': False,
+                          'AutoAcceptParty': True, 'Accept Invites From List': True,
+                          'InviteList': [escort], 'Party Leader Names': [escort], 'LeaveIfLeaderNotInList': True})
+        elif m.role == 'leader':
             party.update({'AutoInviteParty': True, 'Invite From List': True, 'InviteList': others,
                           'AutoAcceptParty': False, 'Accept Invites From List': False,
                           'Party Leader Names': [], 'LeaveIfLeaderNotInList': False})
@@ -842,12 +852,9 @@ class PhBotFiles:
                           'AutoAcceptParty': True, 'Accept Invites From List': True,
                           'InviteList': [g.leader.character], 'Party Leader Names': [g.leader.character],
                           'LeaveIfLeaderNotInList': True})
-        # union party: the leader accepts the union of union_master (exp + item share), nobody else joins one
-        master = self.s.get('union_master')
-        lead = m.role == 'leader' and bool(master)
-        prof['Union Party'] = dict(prof.get('Union Party') or {}, AcceptUnionPartyInvites=lead, AutoUnionPartyInvite=False,
-                                   UnionPartyAccept=[master] if lead else [], UnionPartyInvite=[],
-                                   UnionPartyType=self.s['union_type'])
+        # no union party: the escort leads the one party
+        prof['Union Party'] = dict(prof.get('Union Party') or {}, AcceptUnionPartyInvites=False,
+                                   AutoUnionPartyInvite=False, UnionPartyAccept=[], UnionPartyInvite=[])
         # bot trace (not the game's) of the escort, right on top of it, with buffs and party buffs; whether it
         # attacks too depends on the stage (the plugin switches it)
         stage = stage_for(self.s['escort_stages'], g.min_level())
@@ -1034,7 +1041,7 @@ class Manager:
                     self.builds[bid] = read_json(os.path.join(bdir, f), {}) or {}
                     self.templates[bid] = read_json(os.path.join(path_in_root(self.s['templates_dir']), f), {}) or {}
             old = {g.gid: g for g in getattr(self, 'groups', [])}
-            self.groups = load_groups(self.s, self.progress, self.skip)
+            self.groups = load_groups(self.s, self.progress, self.skip, escort_party=not self.standard)
             for g in self.groups:       # keep live groups when reloading while running
                 if g.gid in old and old[g.gid].state in ('launching', 'running'):
                     self.groups[self.groups.index(g)] = old[g.gid]
@@ -1046,8 +1053,6 @@ class Manager:
                 return
             self.slots = load_proxies(self.s)
             self.s['escort_name'] = self.escort_group().leader.character if self.escort_group() else ''
-            if self.s['escort_name']:
-                self.s['union_master'] = self.s['escort_name']      # the leaders join the escort's union
             self.log('Loaded %d group(s), %d connection slot(s), composition "%s": %s' % (
                 len(self.groups), len(self.slots), self.s['composition'], ', '.join(composition(self.s))))
             self._reattach()
@@ -1056,9 +1061,9 @@ class Manager:
             except Exception as e:
                 self.log('group files not refreshed: %s' % e)
             try:
-                self.update_union_master()
+                self.update_escort_party()
             except Exception as e:
-                self.log('union master profile not updated: %s' % e)
+                self.log('escort party profile not updated: %s' % e)
             self.log('Login: %s' % (' '.join(login_args(self.s)) or 'phBot will ask for the server'))
 
     def install_plugin(self):
@@ -1085,22 +1090,19 @@ class Manager:
     def escort_group(self):
         return next((g for g in getattr(self, 'groups', []) if g.escort and g.members), None)
 
-    def union_leaders(self):
-        return [g.leader.character for g in self.groups if g.members and g.state != 'skipped' and not g.escort]
-
     def group_characters(self):
         return [m.character for g in self.groups if g.state != 'skipped' and not g.escort for m in g.members]
 
-    def update_union_master(self):
-        """union_master's phBot profile (the one it uses now) auto-invites every group leader into its union,
-        exp + item share; the escort also resurrects every group character (they are in its union, not its
-        party). Returns the profile file when it changed (an open phBot reloads it on a profile change)."""
-        master = self.s.get('union_master')
-        if not master:
+    def update_escort_party(self):
+        """the escort's phBot profile (the one it uses now): party leader, auto-invites every group character
+        (exp + item share; they accept only it and leave when it does), no union, resurrects them all. Returns the
+        profile file when it changed (an open phBot reloads it on a profile change)."""
+        master = self.s.get('escort_name')
+        if not master or not self.escort_group():
             return None
         default = read_json(self.files.profile_path(master))
         if not default:
-            self.log('Union: no phBot profile of %s found' % master)
+            self.log('Party: no phBot profile of %s found' % master)
             return None
         name = default['Profile'] if len(default) == 1 and default.get('Profile') else 'Default'
         path = self.files.profile_path(master, name)
@@ -1108,16 +1110,23 @@ class Manager:
         if not prof or len(prof) < 5:
             return None
         up = prof.setdefault('Union Party', {})
-        want = {'AutoUnionPartyInvite': True, 'AcceptUnionPartyInvites': False, 'UnionPartyInvite': self.union_leaders(),
-                'UnionPartyType': self.s['union_type']}
+        party = prof.setdefault('Party', {})
         res = prof.setdefault('Auto Resurrect', {})
-        want_res = {'ResurrectList': self.group_characters()} if self.escort_group() else {}
-        if all(up.get(k) == v for k, v in want.items()) and all(res.get(k) == v for k, v in want_res.items()):
+        # the escort is the party leader: it invites the characters of the groups (one group plays at a time)
+        want = {'AutoUnionPartyInvite': False, 'AcceptUnionPartyInvites': False, 'UnionPartyInvite': []}
+        want_party = {'AutoInviteParty': True, 'Invite From List': True, 'InviteList': self.group_characters(),
+                      'AutoAcceptParty': False, 'Accept Invites From List': False, 'Accept All Invites': False,
+                      'Invite All Players': False, 'AutoFormParty': False, 'Party Leader Names': [],
+                      'LeaveIfLeaderNotInList': False, 'PartyInviteType': self.s['party_invite_type']}
+        want_res = {'ResurrectList': self.group_characters()}
+        if all(up.get(k) == v for k, v in want.items()) and all(party.get(k) == v for k, v in want_party.items()) \
+                and all(res.get(k) == v for k, v in want_res.items()):
             return None
         up.update(want)
+        party.update(want_party)
         res.update(want_res)
         write_json(path, prof)
-        self.log('Union: %s invites the group leaders %s (exp + item share)' % (master, ', '.join(want['UnionPartyInvite'])))
+        self.log('Party: %s is the party leader, it invites the group characters (exp + item share)' % master)
         return path
 
     def _reattach(self):
@@ -1418,7 +1427,7 @@ class Manager:
         if len(self.s.get('escort_stages') or []) == 0:
             p.append('No escort_stages in settings.json')
         for g in self.groups:
-            if len(g.members) < self.s['group_size'] and g.state != 'done' and not g.escort:
+            if len(g.members) < group_size(self.s, bool(self.escort_group())) and g.state != 'done' and not g.escort:
                 p.append('%s has only %d characters (party works, but less EXP share)' % (g.gid, len(g.members)))
         return p
 
@@ -1760,8 +1769,8 @@ class Manager:
         plan = self.plan_for(g)
         self.files.write_group(g, plan, self.builds)
         if g.escort:
-            # the escort plays with its own profile; it only gets the union invites + resurrect list
-            self.update_union_master()
+            # the escort plays with its own profile; it only gets the party invites + resurrect list
+            self.update_escort_party()
             for m in g.members:
                 self.files.reset_status(m.character)
                 m.restarts, m.proc, m.held = 0, None, False

@@ -1,6 +1,6 @@
 # MassLeveler – group auto leveling 1 → 101 (Elysian, phBot)
 
-Characters level in groups (up to 8, the party limit). Every member has a build (CH nuker, EU wizard, cleric…),
+Characters level in groups of 7: the escort is the 8th in their party, its leader (party limit 8). Every member has a build (CH nuker, EU wizard, cleric…),
 set by the group composition. Each group is created, partied and moved from area to area together, and stops when
 the **lowest** member reaches 101. Then the next batch starts.
 
@@ -79,9 +79,9 @@ Double-click `MassLeveler.bat`, then press **Start**.
 
 ## How a group plays
 
-1. The manager writes each character's phBot profile. The leader auto-invites the 7 members, and the members accept only the leader. Party type is `party_invite_type` = 3, your current setting.
+1. The manager writes each character's phBot profile. The escort is the party leader: its invite list has every group character, the members accept only the escort and leave when it leaves. No union party. Party type is `party_invite_type` = 3, your current setting.
 2. phBot logs in with `--character`. If the character doesn't exist, the plugin creates it and selects it.
-3. Levels 1–5: everyone plays solo, because a party isn't possible yet. From level 5 the leader's phBot forms the party.
+3. Levels 1–5: everyone plays solo, because a party isn't possible yet. From level 5 the escort's phBot invites them into its party.
 4. Every 2 s each bot reads the other 7 status files. It uses the **lowest level** to pick the area, so all 8 switch at the same time. phBot then walks there with its own path finding.
 5. When the lowest member is 101, every bot stops, uses a return scroll and waits in town. The manager then closes all 8 bots (and the leader's client) and starts the next batch.
 

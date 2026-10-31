@@ -297,7 +297,7 @@ class SettingsDialog:
             self.fields(groups, r + 1, [('hide_client', 'Hide the game client', 'check'),
                                         ('minimize_bots', 'Start bots hidden (tray)', 'check')])
         else:
-            r = self.fields(groups, 0, [('group_size', 'Players per group', 'spin8'),
+            r = self.fields(groups, 0, [('group_size', 'Players per group (+ the escort)', 'spin7'),
                                         ('max_parallel_groups', 'Groups at the same time', 'spin20'),
                                         ('final_level', 'Stop at level', 'spin140'),
                                         ('member_mode', 'Members run with', 'mode'),
@@ -439,7 +439,7 @@ class SettingsDialog:
 
     def show_slots(self):
         try:
-            size = max(1, int(self.vars['group_size'].get()))
+            size = min(max(1, int(self.vars['group_size'].get())), ml_core.PARTY_MAX - 1)    # + the escort
         except ValueError:
             return
         old = [v.get() for v in self.slot_vars]
