@@ -5,6 +5,10 @@ data/progress.json
 data/skip.json
 data/custom_spots.json
 data/bad_spots.json
+data/standard_progress.json
+data/standard_skip.json
+data/standard_auto.json
+data/last_mode.json
 
 # build leftovers
 __pycache__/

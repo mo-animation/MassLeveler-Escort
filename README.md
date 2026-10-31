@@ -15,6 +15,16 @@ MassLeveler.bat ──► manager (desktop dashboard)
      phBot/Config/MassLeveler/  ◄── status files ──► dashboard
 ```
 
+## Two modes (chosen when it opens)
+
+- **Mass Leveler**: everything below.
+- **Standard**: a plain phBot manager. **Start** opens every ticked character that is not finished (green), one after
+  another, with auto login, and starts its bot once it is in the game. The characters play with their own phBot
+  profiles (the manager writes none, the plugin stays idle: no `-mlgroup`). Training area and the rest: right-click →
+  phBot → Training. **Auto start** (right-click a group or character): its bot opens again whenever it closes by itself.
+  Standard keeps its own ticks, finished marks and Auto start list (`data/standard_*.json`) and its own settings
+  (`settings.json` → `standard`): groups of 8, every bot on this PC's connection (no proxies).
+
 ## What each part does
 
 | Part | Job |

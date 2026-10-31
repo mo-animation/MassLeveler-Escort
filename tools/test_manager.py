@@ -390,6 +390,70 @@ check(ml_core.high_spots({'escort_high_spot': WP}) == {'80': WP}, 'old single es
 check(ml_core.high_spots({'escort_high_spot': WP, 'escort_high_spots': {'80': None}}) == {'80': None},
       'new setting wins over the old one')
 
+# Standard mode: a plain phBot manager (no -mlgroup, phBot's own status, its own ticks / finished / Auto start)
+std = dict(settings, standard={'group_size': 2, 'launch_delay_seconds': 0.3, 'disconnect_restart_seconds': 0.5,
+                               'progress': os.path.join(TMP, 'std_progress.json'),
+                               'skip': os.path.join(TMP, 'std_skip.json'),
+                               'auto_start': os.path.join(TMP, 'std_auto.json')})
+json.dump(std, open(os.path.join(TMP, 'settings_std.json'), 'w'))
+json.dump({'fnuk05': 'finished', 'fnuk06': 'finished'}, open(os.path.join(TMP, 'std_progress.json'), 'w'))
+json.dump(['fnuk01'], open(os.path.join(TMP, 'std_auto.json'), 'w'))
+os.environ['STD_CRASH_ONCE'] = 'fnuk01,fnuk03'
+slog = []
+mgrD = ml_core.Manager(os.path.join(TMP, 'settings_std.json'), log=slog.append, mode='standard')
+D = {g.gid: g for g in mgrD.groups}
+ch = lambda name: next(m for g in mgrD.groups for m in g.all_members if m.character == name)
+check(sorted(D) == ['G001', 'G002', 'G003'] and D['G003'].state == 'done',
+      'Standard: groups of its own size, its own finished marks (G003 green)')
+mass_skip = lambda: open(settings['skip']).read() if os.path.exists(settings['skip']) else ''
+before = mass_skip()
+mgrD.set_member_skip(D['G001'], ch('fnuk02'), True)
+mgrD.set_member_skip(D['G002'], ch('fnuk04'), True)
+check(json.load(open(os.path.join(TMP, 'std_skip.json')))['characters'] == ['fnuk02', 'fnuk04'] and mass_skip() == before,
+      'Standard ticks are its own (the Mass Leveler skip file is untouched)')
+cmd = ml_core.build_command(mgrD.s, D['G001'], D['G001'].members[0], None, standard=True)
+check(not any(a.startswith('-mlgroup') for a in cmd) and '--minimize' in cmd,
+      'Standard command: no -mlgroup (the plugin stays idle), the first character is no leader')
+mgrD.start()
+deadline = time.time() + 60
+while time.time() < deadline and not (ch('fnuk01').status.get('state') == 'botting' and
+                                     any('fnuk01 closed - Auto start' in l for l in slog) and 'fnuk03 closed' in slog):
+    time.sleep(0.5)
+st1 = ch('fnuk01').status
+check(st1.get('state') == 'botting' and st1.get('level') == 50 and st1.get('exp_pct') == '25.00' and
+      st1.get('zone') == 'Jangan' and st1.get('area') == '6440, 838',
+      'opened, logged in, bot started; the numbers come from phBot\'s own status: %s' % st1)
+check(any('fnuk01 closed - Auto start opens it again' in l for l in slog), 'an Auto start bot that closed opens again')
+check('fnuk03 closed' in slog and not ml_core.Manager._alive(ch('fnuk03')) and
+      ch('fnuk03').status.get('state') == 'closed' and D['G002'].state == 'stopped',
+      'a bot without Auto start stays closed (its group: stopped)')
+check(not ml_core.Manager._alive(ch('fnuk02')) and not any(l.startswith(('launch fnuk05', 'launch fnuk06')) for l in slog),
+      'unticked and finished characters are not opened')
+args1 = json.load(open(os.path.join(PHBOT, 'standard_args_fnuk01.json')))
+check(not any(a.startswith('-mlgroup') for a in args1) and args1[args1.index('--character') + 1] == 'fnuk01',
+      'phBot got no -mlgroup')
+# another window finds the open bot by its name in phBot, and does not open it twice
+slog2 = []
+mgrD2 = ml_core.Manager(os.path.join(TMP, 'settings_std.json'), log=slog2.append, mode='standard')
+lead2 = next(g for g in mgrD2.groups if g.gid == 'G001').members[0]
+check(next(g for g in mgrD2.groups if g.gid == 'G001').state == 'running' and ml_core.Manager._alive(lead2)
+      and lead2.start_sent, 'bots still open from before are taken over, their bot left as it is')
+lead2.proc = None
+mgrD2.launch(next(g for g in mgrD2.groups if g.gid == 'G001'), lead2)
+check(ml_core.Manager._alive(lead2) and any('already open in phBot' in l for l in slog2) and
+      not any(l.startswith('launch fnuk01') for l in slog2), 'a character open in phBot is not opened twice')
+mgrD.save_settings({'launch_delay_seconds': 0.4})
+raw = json.load(open(os.path.join(TMP, 'settings_std.json')))
+check(raw['standard']['launch_delay_seconds'] == 0.4 and raw['launch_delay_seconds'] == 0.2 and
+      ml_core.load_settings(os.path.join(TMP, 'settings_std.json'))['launch_delay_seconds'] == 0.2,
+      'Standard settings are saved apart (Mass Leveler keeps its own)')
+launches = sum(1 for l in slog if l.startswith('launch fnuk01'))
+mgrD.kill_group(next(g for g in mgrD.groups if g.gid == 'G001'), 'stopped')
+time.sleep(5)
+check(not ml_core.Manager._alive(ch('fnuk01')) and sum(1 for l in slog if l.startswith('launch fnuk01')) == launches,
+      'closed from here: not opened again, even with Auto start')
+mgrD.shutdown(kill=True)
+
 shutil.rmtree(TMP, ignore_errors=True)
 print('\n%d failure(s)' % len(failures))
 sys.exit(1 if failures else 0)

@@ -5,6 +5,11 @@ its 10 level-bracket skill plans and what it is created with. The group composit
 "compositions") says which build each slot of a group plays; accounts.csv can override it per account.
 No GUI code here, so it can be tested on its own (see tools/fake_phbot.py).
 
+Standard mode (Manager(mode='standard')): a plain phBot manager. The ticked, unfinished characters open with auto
+login and start botting, with their own phBot profiles; no -mlgroup, so the plugin stays idle. Everything shown
+comes from phBot's own status (shared memory). Its ticks, finished marks and Auto start list are its own files, and
+the settings saved in Standard mode go to settings.json "standard".
+
 Escort version: one strong character (the accounts.csv row with escort = yes) levels every group. It is its own
 group ESCORT, launched with a client while groups run; the group traces it through the stages of escort_stages
 (reverse scroll to the stage, the escort waits for everyone, then hunts at the stage's point; the plugin does it).
@@ -106,6 +111,13 @@ DEFAULT_SETTINGS = {
     'escort_solo_spot': None,       # {region, x, y, z}: where members level alone (else the plan's areas)
     'escort_speed_level': 52,      # speed scrolls while tracing until the group's lowest level is this
     'escort_fast_respawn_level': 52,    # a member below this level that dies: town at once, reverse to the death point
+}
+# Standard mode puts these over the settings, then settings.json "standard" (what its Settings dialog saves)
+STANDARD_DEFAULTS = {
+    'group_size': 8,
+    'progress': 'data/standard_progress.json',
+    'skip': 'data/standard_skip.json',
+    'auto_start': 'data/standard_auto.json',     # characters opened again whenever their bot closes by itself
 }
 ESCORT_GID = 'ESCORT'
 
@@ -322,10 +334,14 @@ def ensure_pick_filter(config_dir, server, char, template_db):
     return 'updated'
 
 
-def load_settings(path=None):
+def load_settings(path=None, mode='mass'):
     path = path or path_in_root('settings.json')
     s = copy.deepcopy(DEFAULT_SETTINGS)
-    s.update(read_json(path, {}) or {})
+    raw = read_json(path, {}) or {}
+    s.update(raw)
+    if mode == 'standard':
+        s.update(STANDARD_DEFAULTS)
+        s.update(raw.get('standard') or {})
     # the folder is copied between PCs with phBot in different places: the first phBot folder that exists
     if not os.path.isdir(s['phbot_dir']):
         s['phbot_dir'] = next((p for p in s.get('phbot_dirs') or [] if os.path.isdir(p)), s['phbot_dir'])
@@ -356,6 +372,9 @@ class Member:
         self.no_client = False      # Go Clientless: its client was closed on purpose
         self.spot_fixed_at = 0.0    # last time its training area was put back on the group's spot
         self.spot_off_since = 0.0   # since when phBot's training area differs from that spot
+        self.queued = False         # Standard: opens when its turn comes (one bot after another)
+        self.reopen_at = 0.0        # Standard: Auto start opens it again at this time
+        self.start_sent = False     # Standard: its bot was started once in the game since it opened
         self.status = {}
 
 
@@ -888,7 +907,9 @@ def s_mode(s, m):
     return s['leader_mode'] if m.role == 'leader' else s['member_mode']
 
 
-def build_command(s, g, m, proxy):
+def build_command(s, g, m, proxy, standard=False):
+    """standard = Standard mode: every character the same (no leader) and no -mlgroup, so the plugin stays idle"""
+    lead = m.role == 'leader' and not standard
     cmd = list(s['phbot_command'])
     if os.path.isfile(phbot_exe_path(s)):
         cmd[0] = os.path.normpath(phbot_exe_path(s))
@@ -897,23 +918,24 @@ def build_command(s, g, m, proxy):
     if m.passcode:
         cmd += ['--passcode', m.passcode]
     cmd += login_args(s)
-    mode = s_mode(s, m)
+    mode = s['member_mode'] if standard else s_mode(s, m)
     if mode == 'client':
         cmd.append('--client')
-        if s['hide_client'] and (m.role != 'leader' or s['hide_leader_client']):
+        if s['hide_client'] and (not lead or s['hide_leader_client']):
             cmd.append('--hideclient')
     elif mode == 'client_then_clientless':
         cmd += ['--client', '--clientless', '--hideclient']
-    if m.role != 'leader':
+    if not lead:
         cmd += list(s['member_client_args'])
-    if s['minimize_bots'] and m.role != 'leader':
+    if s['minimize_bots'] and not lead:
         cmd.append('--minimize')
     if proxy:
         cmd += ['--proxyip', proxy['ip'], '--proxyport', proxy['port']]
         if proxy.get('user'):
             cmd += ['--proxyuser', proxy['user'], '--proxypass', proxy.get('pass', '')]
     cmd += list(s['extra_args'])
-    cmd.append('-mlgroup=' + g.gid)
+    if not standard:
+        cmd.append('-mlgroup=' + g.gid)
     return cmd
 
 
@@ -973,21 +995,25 @@ def masked(cmd):
 
 # ---------------------------------------------------------------- orchestrator
 class Manager:
-    def __init__(self, settings_path=None, log=print):
+    def __init__(self, settings_path=None, log=print, mode='mass'):
         self.settings_path = settings_path
         self.log = log
+        self.mode = mode
+        self.standard = mode == 'standard'      # a plain phBot manager (module docstring)
         self.lock = threading.RLock()
         self.running = False        # launching new groups allowed
         self.thread = None
         self.stop_event = threading.Event()
+        self.next_launch = 0.0      # Standard: the next bot opens at this time
         self.reload()
 
     # -------------------------------------------------- setup
     def reload(self):
         with self.lock:
-            self.s = load_settings(self.settings_path)
+            self.s = load_settings(self.settings_path, self.mode)
             self.files = PhBotFiles(self.s)
-            self.install_plugin()
+            if not self.standard:
+                self.install_plugin()
             self.progress_path = path_in_root(self.s['progress'])
             self.progress = read_json(self.progress_path, {}) or {}
             for ch, v in list(self.progress.items()):   # "Stop at level" raised: finished characters go on
@@ -995,6 +1021,9 @@ class Manager:
                     del self.progress[ch]
             self.skip_path = path_in_root(self.s['skip'])
             self.skip = read_json(self.skip_path, {}) or {}
+            if self.standard:
+                self.auto_path = path_in_root(self.s['auto_start'])
+                self.auto = set(read_json(self.auto_path, []) or [])
             self.plans = {race: (read_json(path_in_root(p), {}) or {}).get('areas', [])
                           for race, p in (self.s['plans'] or {}).items()}
             self.builds, self.templates = {}, {}
@@ -1009,6 +1038,12 @@ class Manager:
             for g in self.groups:       # keep live groups when reloading while running
                 if g.gid in old and old[g.gid].state in ('launching', 'running'):
                     self.groups[self.groups.index(g)] = old[g.gid]
+            if self.standard:           # every bot on this PC's own connection
+                self.slots = [None]
+                self.log('Standard mode: %d group(s) of up to %d' % (len(self.groups), self.s['group_size']))
+                self._reattach_standard()
+                self.log('Login: %s' % (' '.join(login_args(self.s)) or 'phBot will ask for the server'))
+                return
             self.slots = load_proxies(self.s)
             self.s['escort_name'] = self.escort_group().leader.character if self.escort_group() else ''
             if self.s['escort_name']:
@@ -1327,10 +1362,13 @@ class Manager:
         self.refresh_spots()
 
     def save_settings(self, changes):
-        """write changed keys to settings.json and reload"""
+        """write changed keys to settings.json (Standard mode: to its "standard" part) and reload"""
         path = self.settings_path or path_in_root('settings.json')
         raw = read_json(path, {}) or {}
-        raw.update(changes)
+        if self.standard:
+            raw['standard'] = dict(raw.get('standard') or {}, **changes)
+        else:
+            raw.update(changes)
         write_json(path, raw)
         self.reload()
 
@@ -1338,7 +1376,9 @@ class Manager:
         """show / hide the phBot window ('bot') or the game client ('client') of some members"""
         n = 0
         for m in members:
-            st = self.files.status(m.character)
+            # Standard: phBot's own status (a plugin status file there would be an old Mass Leveler run's)
+            st = {'pid': self.bot_pid(m), 'client_pid': (phbot_status(self.bot_pid(m)) or {}).get('client_pid', 0)} \
+                if self.standard else self.files.status(m.character)
             if what == 'bot':
                 # the bot this dashboard launched, else the one the plugin reports (dashboard reopened)
                 n += show_bot(m.proc.pid if m.proc and m.proc.poll() is None else st.get('pid', 0), show)
@@ -1352,7 +1392,14 @@ class Manager:
         p = []
         exe = self.s['phbot_command'][0]
         if exe.lower().endswith('.exe') and not os.path.isfile(phbot_exe_path(self.s)):
-            p.append('phBot not found: ' + phbot_exe_path(self.s) + '  (use "Choose phBot..." to pick it)')
+            p.append('phBot not found: ' + phbot_exe_path(self.s) + '  (Settings: Choose... to pick it)')
+        if self.standard:
+            if exe.lower().endswith('.exe') and not login_args(self.s):
+                p.append('Server "%s" not found in %s - phBot will ask for the server' % (
+                    self.s['server'], os.path.join(self.s['phbot_dir'], 'vSRO.json')))
+            if not self.groups:
+                p.append('No accounts in ' + self.s['accounts_csv'])
+            return p
         if not os.path.isfile(os.path.join(self.s['phbot_dir'], 'Plugins', 'MassLeveler.py')) and exe.lower().endswith('.exe'):
             p.append('Copy plugin/MassLeveler.py into ' + os.path.join(self.s['phbot_dir'], 'Plugins'))
         if exe.lower().endswith('.exe') and not login_args(self.s):
@@ -1379,14 +1426,15 @@ class Manager:
         """Point the manager at another phBot.exe, save it to settings.json and install the plugin there."""
         path = self.settings_path or path_in_root('settings.json')
         raw = read_json(path, {}) or {}
-        raw['phbot_dir'] = os.path.dirname(exe_path).replace('\\', '/')
-        cmd = list(raw.get('phbot_command') or DEFAULT_SETTINGS['phbot_command'])
+        part = raw.setdefault('standard', {}) if self.standard else raw     # Standard: its own phBot
+        part['phbot_dir'] = os.path.dirname(exe_path).replace('\\', '/')
+        cmd = list(part.get('phbot_command') or raw.get('phbot_command') or DEFAULT_SETTINGS['phbot_command'])
         cmd[0] = os.path.basename(exe_path)
-        raw['phbot_command'] = cmd
+        part['phbot_command'] = cmd
         write_json(path, raw)
-        plugins = os.path.join(raw['phbot_dir'], 'Plugins')
+        plugins = os.path.join(part['phbot_dir'], 'Plugins')
         src = path_in_root('plugin/MassLeveler.py')
-        if os.path.isdir(plugins) and os.path.isfile(src):
+        if not self.standard and os.path.isdir(plugins) and os.path.isfile(src):
             shutil.copyfile(src, os.path.join(plugins, 'MassLeveler.py'))
             self.log('Plugin installed in ' + plugins)
         self.reload()
@@ -1441,11 +1489,19 @@ class Manager:
     # -------------------------------------------------- control
     def start(self):
         self.running = True
+        self._ensure_loop()
+        if self.standard:       # every ticked, unfinished character opens (one after another)
+            with self.lock:
+                for g in self.groups:
+                    if g.state not in ('skipped', 'done'):
+                        self._begin_standard(g)
+        self.log('Started')
+
+    def _ensure_loop(self):
         if not self.thread or not self.thread.is_alive():
             self.stop_event.clear()
             self.thread = threading.Thread(target=self._loop, daemon=True)
             self.thread.start()
-        self.log('Started')
 
     def pause(self):
         self.running = False
@@ -1468,12 +1524,17 @@ class Manager:
             self.log('%s %s' % (g.gid, new_state))
 
     def kill_member(self, m):
-        st = self.files.status(m.character)
-        if m.proc and m.proc.poll() is None:
+        alive = m.proc and m.proc.poll() is None
+        if self.standard:       # phBot's own status: a plugin status file there would be an old Mass Leveler run's
+            client = (phbot_status(m.proc.pid) or {}).get('client_pid') if alive else 0
+        else:
+            client = self.files.status(m.character).get('client_pid')
+        if alive:
             kill_tree(m.proc.pid)
-        if st.get('client_pid'):
-            kill_tree(st['client_pid'])
+        if client:
+            kill_tree(client)
         m.proc = None
+        m.queued, m.reopen_at = False, 0.0
 
     def send(self, g, cmd):
         for m in g.members:
@@ -1487,7 +1548,10 @@ class Manager:
                 return False
             slot = g.slot
             self.kill_group(g, 'stopped')
-            self._begin(g, slot)
+            if self.standard:
+                self._begin_standard(g)
+            else:
+                self._begin(g, slot)
             self.log('%s restarting all bots' % g.gid)
             return True
 
@@ -1496,14 +1560,17 @@ class Manager:
             self.kill_member(m)
             m.restarts = 0
             m.held = False
-            self.launch(g, m)
+            if self.standard:
+                self.open_member(g, m)
+            else:
+                self.launch(g, m)
 
     # -------------------------------------------------- phBot Manager commands (right-click menu)
     def bot_pid(self, m):
         """pid of the character's phBot: the one launched here, else the one its plugin reports"""
         if m.proc and m.proc.poll() is None:
             return m.proc.pid
-        return self.files.status(m.character).get('pid') or 0
+        return 0 if self.standard else self.files.status(m.character).get('pid') or 0
 
     def bot_command(self, members, cmd, **kw):
         """a phBot Manager command (docs/PROTOCOL.md) to each member's bot; returns how many got it"""
@@ -1524,7 +1591,7 @@ class Manager:
         n = 0
         for m in members:
             pid = (phbot_status(self.bot_pid(m)) or {}).get('client_pid') or \
-                self.files.status(m.character).get('client_pid')
+                (0 if self.standard else self.files.status(m.character).get('client_pid'))
             if pid:
                 m.no_client = True
                 kill_tree(pid)
@@ -1546,6 +1613,13 @@ class Manager:
         self.log('Terminated %s - not reopened until restarted' % ', '.join(m.character for m in members))
 
     def start_group_now(self, g):
+        if self.standard:
+            with self.lock:
+                if g.gid in (self.skip.get('groups') or []):
+                    self.set_group_skip(g, False)
+                self._begin_standard(g)
+            self._ensure_loop()
+            return
         with self.lock:
             if g.state in ('launching', 'running'):
                 return
@@ -1559,6 +1633,111 @@ class Manager:
                 self.log('No free connection slot for %s (add proxies or finish a group)' % g.gid)
                 return
             self._begin(g, slot)
+
+    # -------------------------------------------------- Standard mode (a plain phBot manager)
+    @staticmethod
+    def _alive(m):
+        return bool(m.proc) and m.proc.poll() is None
+
+    def open_member(self, g, m):
+        """open one character (its turn comes after the bots already waiting)"""
+        with self.lock:
+            if self._alive(m):
+                return
+            m.queued, m.held, m.reopen_at = True, False, 0.0
+            if g.state not in ('launching', 'running'):
+                g.state, g.message = 'launching', ''
+        self._ensure_loop()
+
+    def set_auto_start(self, members, on):
+        """Auto start: the bot opens again whenever it closes by itself (not when closed from here)"""
+        with self.lock:
+            for m in members:
+                (self.auto.add if on else self.auto.discard)(m.character)
+            write_json(self.auto_path, sorted(self.auto))
+        self.log('Auto start %s: %s' % ('on' if on else 'off', ', '.join(m.character for m in members)))
+
+    def running_phbots(self):
+        """{character in lower case: pid} of the open phBots that are logged in (from phBot's own status)"""
+        found = {}
+        try:
+            out = subprocess.run(['tasklist', '/FO', 'CSV', '/NH', '/FI', 'IMAGENAME eq %s' %
+                                  os.path.basename(self.s['phbot_command'][0])], capture_output=True, text=True,
+                                 creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0)).stdout
+        except Exception:
+            return found
+        for row in csv.reader(out.splitlines()):
+            if len(row) > 1 and row[1].isdigit():
+                st = phbot_status(int(row[1]))
+                if st and st['name']:
+                    found[st['name'].lower()] = int(row[1])
+        return found
+
+    def _reattach_standard(self):
+        """bots open from before this window (or opened by hand) show as running; their bot is left as it is"""
+        found = self.running_phbots()
+        for g in self.groups:
+            mine = [m for m in g.all_members if m.character.lower() in found and not self._alive(m)]
+            for m in mine:
+                m.proc, m.start_sent, m.launched_at = RunningBot(found[m.character.lower()]), True, time.time()
+            if mine:
+                g.state, g.message = 'running', 'taken over: %d bot(s) were open' % len(mine)
+
+    def _begin_standard(self, g):
+        """the group's ticked, unfinished characters that are not open yet wait for their turn to open"""
+        g.use_members()
+        todo = [m for m in g.members if self.progress.get(m.character) != 'finished' and not self._alive(m)]
+        for m in todo:
+            m.queued, m.held, m.reopen_at, m.restarts = True, False, 0.0, 0
+        if todo:
+            g.state, g.message = 'launching', ''
+            self.log('%s opening: %s' % (g.gid, ', '.join(m.character for m in todo)))
+
+    def _tick_standard(self, now):
+        """phBot's own numbers for every open bot; one waiting bot opens every launch_delay_seconds, its bot starts
+        once it is in the game; an Auto start one that closed by itself opens again"""
+        nxt = None
+        for g in self.groups:
+            for m in g.all_members:
+                alive = self._alive(m)
+                if m.proc and not alive:        # closed by itself: Close / Stop all clear m.proc themselves
+                    m.proc = None
+                    if m.character in self.auto and not m.skip:
+                        m.reopen_at = now + self.s['disconnect_restart_seconds']
+                        self.log('%s closed - Auto start opens it again' % m.character)
+                    else:
+                        self.log('%s closed' % m.character)
+                if m.skip:
+                    m.queued, m.reopen_at = False, 0.0
+                live = phbot_status(m.proc.pid) if alive else None
+                if live and live['in_game'] and not m.start_sent:
+                    m.start_sent = bool(self.bot_command([m], 'start_bot'))
+                m.status = self._standard_status(m, live, alive)
+                if nxt is None and not alive and (m.queued or (m.reopen_at and now >= m.reopen_at)):
+                    nxt = (g, m)
+            busy = [m for m in g.all_members if m.queued or m.reopen_at or self._alive(m)]
+            if busy:
+                g.state = 'launching' if any(m.queued for m in busy) else 'running'
+            elif g.state in ('launching', 'running'):
+                group_state(g, self.progress, self.skip)
+                if g.state == 'pending':
+                    g.state = 'stopped'
+        if nxt and now >= self.next_launch:
+            self.launch(*nxt)
+            self.next_launch = now + self.s['launch_delay_seconds']
+
+    def _standard_status(self, m, live, alive):
+        """what the dashboard shows, from phBot's shared memory"""
+        last = m.status.get('level', '')
+        if not live:
+            return {'level': last, 'state': 'starting' if alive else 'opening again' if m.reopen_at else
+                    'waiting to open' if m.queued else 'closed' if m.launched_at else ''}
+        t = live['training']
+        return {'level': live['level'] or last, 'zone': live['zone'], 'dead': live['dead'],
+                'exp_pct': '%.2f' % (100.0 * live['exp'] / live['level_exp']) if live['level_exp'] else '',
+                'area': '%.0f, %.0f' % (t[1], t[2]) if t[1] or t[2] else '',
+                'state': 'botting' if live['botting'] else 'tracing' if live['tracing'] else
+                         'in game' if live['in_game'] else 'logging in' if live['connected'] else 'starting'}
 
     # -------------------------------------------------- internals
     def _free_slot(self):
@@ -1605,8 +1784,15 @@ class Manager:
         self.log('%s starting (%s): %s' % (g.gid, g.message, ', '.join(m.character for m in g.members)))
 
     def launch(self, g, m):
+        if self.standard:
+            m.queued, m.reopen_at, m.start_sent = False, 0.0, False
+            pid = self.running_phbots().get(m.character.lower())
+            if pid:         # already open in a phBot (by hand, or before this window): that one plays
+                m.proc, m.launched_at = RunningBot(pid), time.time()
+                self.log('%s is already open in phBot - not opened twice' % m.character)
+                return
         proxy = self.slots[g.slot] if g.slot is not None and g.slot < len(self.slots) else None
-        cmd = build_command(self.s, g, m, proxy)
+        cmd = build_command(self.s, g, m, proxy, standard=self.standard)
         try:
             m.proc = subprocess.Popen(cmd, cwd=self.s['phbot_dir'])
             m.launched_at = time.time()
@@ -1629,6 +1815,10 @@ class Manager:
 
     def tick(self):
         hide_status_widgets()
+        if self.standard:
+            with self.lock:
+                self._tick_standard(time.time())
+            return
         with self.lock:
             now = time.time()
             for g in self._active():

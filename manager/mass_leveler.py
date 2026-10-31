@@ -244,7 +244,8 @@ def box_image(on):
 
 class SettingsDialog:
     """Settings in pages: General (phBot, server, accounts), Groups, Escort (the 80+ / 95+ spots) and Builds (the
-    composition gives every slot of a group its build). Buttons act at once, the fields when Save is pressed."""
+    composition gives every slot of a group its build). Buttons act at once, the fields when Save is pressed.
+    Standard mode: General and Groups only, saved to its own part of settings.json."""
 
     INTS = ('group_size', 'max_parallel_groups', 'final_level', 'launch_delay_seconds', 'disconnect_restart_seconds',
             'training_radius')
@@ -256,15 +257,16 @@ class SettingsDialog:
         self.builds = sorted(mgr.builds)
         self.comps = {k: list(v) for k, v in (s.get('compositions') or {}).items()}
         top = self.top = tk.Toplevel(app.root)
-        top.title('Settings')
+        top.title('Settings - Standard' if app.standard else 'Settings')
         top.transient(app.root)
         top.resizable(False, False)
         dark_title(top)
         top.grab_set()
         self.nb = ttk.Notebook(top)
         self.nb.pack(fill='both', expand=True, padx=8, pady=(8, 0))
-        general, groups, escort, builds = (self.page(t) for t in ('General', 'Groups', 'Escort', 'Builds'))
+        general, groups = self.page('General'), self.page('Groups')
         self.vars, self.labels, self.pages = {}, {}, {}
+        self.high = []      # (level, spot var, reverse var) of the Escort page
 
         ttk.Label(general, text='phBot').grid(row=0, column=0, sticky='w', pady=3)
         row = ttk.Frame(general)
@@ -280,24 +282,46 @@ class SettingsDialog:
         row = ttk.Frame(general)
         row.grid(row=r + 1, column=0, columnspan=3, sticky='w')
         ttk.Button(row, text='Open accounts.csv', command=lambda: app.open_path(s['accounts_csv'])).pack(side='left')
-        ttk.Button(row, text='Open proxies.csv', command=lambda: app.open_path(s['proxies_csv'])).pack(side='left', padx=6)
-        ttk.Button(row, text='Reload accounts and settings', command=self.reload).pack(side='left')
+        if not app.standard:        # Standard: every bot on this PC's own connection
+            ttk.Button(row, text='Open proxies.csv', command=lambda: app.open_path(s['proxies_csv'])).pack(
+                side='left', padx=(6, 0))
+        ttk.Button(row, text='Reload accounts and settings', command=self.reload).pack(side='left', padx=(6, 0))
 
-        r = self.fields(groups, 0, [('group_size', 'Players per group', 'spin8'),
-                                    ('max_parallel_groups', 'Groups at the same time', 'spin20'),
-                                    ('final_level', 'Stop at level', 'spin140'),
-                                    ('member_mode', 'Members run with', 'mode'),
-                                    ('launch_delay_seconds', 'Seconds between bot launches', 'spin120'),
-                                    ('disconnect_restart_seconds', 'Reopen a disconnected bot after (seconds)', 'spin300'),
-                                    ('training_radius', 'Training area radius (0 = from the plan)', 'spin200')])
-        ttk.Separator(groups).grid(row=r, column=0, columnspan=3, sticky='ew', pady=10)
-        self.fields(groups, r + 1, [('hide_client', 'Hide the members\' game client', 'check'),
-                                    ('hide_leader_client', 'Hide the leader\'s game client too', 'check'),
-                                    ('minimize_bots', 'Start member bots hidden (tray)', 'check')])
+        if app.standard:
+            r = self.fields(groups, 0, [('group_size', 'Players per group', 'spin8'),
+                                        ('member_mode', 'Bots run with', 'mode'),
+                                        ('launch_delay_seconds', 'Seconds between bot launches', 'spin120'),
+                                        ('disconnect_restart_seconds', 'Auto start: open again after (seconds)',
+                                         'spin300')])
+            ttk.Separator(groups).grid(row=r, column=0, columnspan=3, sticky='ew', pady=10)
+            self.fields(groups, r + 1, [('hide_client', 'Hide the game client', 'check'),
+                                        ('minimize_bots', 'Start bots hidden (tray)', 'check')])
+        else:
+            r = self.fields(groups, 0, [('group_size', 'Players per group', 'spin8'),
+                                        ('max_parallel_groups', 'Groups at the same time', 'spin20'),
+                                        ('final_level', 'Stop at level', 'spin140'),
+                                        ('member_mode', 'Members run with', 'mode'),
+                                        ('launch_delay_seconds', 'Seconds between bot launches', 'spin120'),
+                                        ('disconnect_restart_seconds', 'Reopen a disconnected bot after (seconds)',
+                                         'spin300'),
+                                        ('training_radius', 'Training area radius (0 = from the plan)', 'spin200')])
+            ttk.Separator(groups).grid(row=r, column=0, columnspan=3, sticky='ew', pady=10)
+            self.fields(groups, r + 1, [('hide_client', 'Hide the members\' game client', 'check'),
+                                        ('hide_leader_client', 'Hide the leader\'s game client too', 'check'),
+                                        ('minimize_bots', 'Start member bots hidden (tray)', 'check')])
+            self.escort_page(self.page('Escort'))
+            self.builds_page(self.page('Builds'))
 
-        # one spot per free stage of settings.json (80+, 95+): empty = free, the user drives the escort
+        bar = ttk.Frame(top, padding=8)
+        bar.pack(fill='x')
+        ttk.Button(bar, text='Cancel', command=top.destroy).pack(side='right')
+        ttk.Button(bar, text='Save', style='Accent.TButton', command=self.save).pack(side='right', padx=6)
+        self.nb.select(min(page, self.nb.index('end') - 1))
+
+    def escort_page(self, escort):
+        """one spot per free stage of settings.json (80+, 95+): empty = free, the user drives the escort"""
+        s = self.app.mgr.s
         spots = ml_core.high_spots(s)
-        self.high = []      # (level, spot var, reverse var)
         r = 0
         for lv in [str(st['min_level']) for st in s.get('escort_stages') or [] if st.get('user_spot')]:
             if r:
@@ -321,6 +345,8 @@ class SettingsDialog:
             'Empty spot = free: you drive the escort.   Empty reverse = the nearest reverse point.' if self.high
             else 'settings.json has no free escort stage.')).grid(row=r, column=0, columnspan=3, sticky='w', pady=(10, 0))
 
+    def builds_page(self, builds):
+        s, mgr, app = self.app.mgr.s, self.app.mgr, self.app
         ttk.Label(builds, text='Group composition').grid(row=0, column=0, sticky='w', pady=3, padx=(0, 12))
         row = ttk.Frame(builds)
         row.grid(row=0, column=1, sticky='w')
@@ -342,12 +368,6 @@ class SettingsDialog:
         self.vars['group_size'].trace_add('write', lambda *a: self.show_slots())
         self.slot_vars = []
         self.show_slots()
-
-        bar = ttk.Frame(top, padding=8)
-        bar.pack(fill='x')
-        ttk.Button(bar, text='Cancel', command=top.destroy).pack(side='right')
-        ttk.Button(bar, text='Save', style='Accent.TButton', command=self.save).pack(side='right', padx=6)
-        self.nb.select(page)
 
     def page(self, title):
         f = ttk.Frame(self.nb, padding=12)
@@ -456,7 +476,6 @@ class SettingsDialog:
             if not messagebox.askyesno('MassLeveler', 'Groups are running. The new settings apply to groups started '
                                        'from now on. Save?', parent=self.top):
                 return
-        self.keep_slots()
         out = {}
         for key, v in self.vars.items():
             out[key] = v.get()
@@ -467,6 +486,12 @@ class SettingsDialog:
                     self.nb.select(self.pages[key])
                     messagebox.showwarning('Settings', 'Write a number in "%s".' % self.labels[key], parent=self.top)
                     return
+        if self.app.standard:       # its own part of settings.json: no escort spots / compositions
+            self.app.mgr.save_settings(out)
+            self.app.rebuild_tree()
+            self.top.destroy()
+            return
+        self.keep_slots()
         out['escort_high_spot'] = None      # the old single 80+ spot, now in escort_high_spots
         out['escort_high_spots'] = {}
         for lv, spot_v, rev_v in self.high:
@@ -507,14 +532,17 @@ class SettingsDialog:
 
 
 class App:
-    def __init__(self, root):
+    def __init__(self, root, mode='mass'):
         self.root = root
+        self.mode = mode
+        self.standard = mode == 'standard'      # a plain phBot manager: no leveling (ml_core docstring)
         self.logq = queue.Queue()
         self.shown = {}             # tree row -> what it shows: only rows that changed are drawn again
         self.group_states = {}      # group -> its state at the last refresh (rows open / fold when it changes)
-        self.mgr = ml_core.Manager(log=self._log)
-        root.title('MassLeveler Escort')
-        root.geometry('1100x700')
+        self.mgr = ml_core.Manager(log=self._log, mode=mode)
+        root.title('MassLeveler Escort — %s' % ('Standard' if self.standard else 'Mass Leveler'))
+        root.geometry('1100x700+%d+%d' % (max(0, (root.winfo_screenwidth() - 1100) // 2),
+                                          max(0, (root.winfo_screenheight() - 700) // 2 - 20)))
         root.minsize(760, 420)
         root.protocol('WM_DELETE_WINDOW', self.on_close)
 
@@ -522,15 +550,16 @@ class App:
         bar = ttk.Frame(root, padding=(6, 6, 6, 4))
         bar.pack(fill='x')
         ttk.Button(bar, text='Start', style='Accent.TButton', command=self.on_start).pack(side='left')
-        for text, command in (('Stop all', self.on_stop_all), ('Finish all', self.on_finish_all),
-                              ('Restart bots', self.on_restart_all)):
+        for text, command in [('Stop all', self.on_stop_all)] + ([] if self.standard else [
+                ('Finish all', self.on_finish_all)]) + [('Restart bots', self.on_restart_all)]:
             ttk.Button(bar, text=text, command=command).pack(side='left', padx=(4, 0))
         ttk.Button(bar, text='Update', command=self.on_update).pack(side='right')
         ttk.Button(bar, text='Settings', command=lambda: SettingsDialog(self)).pack(side='right', padx=4)
         self.lbl_summary = ttk.Label(bar, foreground=DARK['dim'])
         self.lbl_summary.pack(side='right', padx=(0, 8))
         self.lbl_dot = ttk.Label(bar, text='●')     # green: new groups start, grey: paused
-        self.lbl_dot.pack(side='right', padx=(0, 4))
+        if not self.standard:
+            self.lbl_dot.pack(side='right', padx=(0, 4))
 
         pan = ttk.PanedWindow(root, orient='vertical')
         pan.pack(fill='both', expand=True, padx=6, pady=(0, 6))
@@ -618,7 +647,8 @@ class App:
         iid = self.tree.identify_row(e.y)
         menu = tk.Menu(self.root, tearoff=0)
         if not iid:
-            running = [m for g in self.mgr.groups if g.state in RUNNING for m in g.members]
+            running = [m for g in self.mgr.groups for m in g.all_members if self.mgr._alive(m)] if self.standard \
+                else [m for g in self.mgr.groups if g.state in RUNNING for m in g.members]
             self.add_item(menu, 'All running groups (%d bots)' % len(running), None, False)
             menu.add_separator()
             self.add_bot_items(menu, running)
@@ -626,7 +656,20 @@ class App:
             self.tree.selection_set(iid)
             self.tree.focus(iid)
             g, m = self.item(iid)
-            if m:
+            if m and self.standard:
+                alive = self.mgr._alive(m)
+                self.add_active_items(menu, g, m, '%s opens with Start' % m.character)
+                self.add_auto_item(menu, [m])
+                self.add_item(menu, 'Open', lambda: self.open_member(g, m), not alive and not m.skip)
+                self.add_item(menu, 'Restart character', self.restart_selected, alive)
+                self.add_item(menu, 'Close', lambda: self.terminate([m]), alive)
+                menu.add_separator()
+                self.add_bot_menu(menu, [m] if alive else [])
+                menu.add_separator()
+                sub = tk.Menu(menu, tearoff=0)
+                self.add_group_items(sub, g)
+                menu.add_cascade(label='     Group %s' % g.gid, menu=sub)
+            elif m:
                 self.add_active_items(menu, g, m, '%s plays with the group' % m.character)
                 self.add_item(menu, 'Restart character', self.restart_selected, g.state in RUNNING)
                 menu.add_separator()
@@ -659,6 +702,18 @@ class App:
 
     def add_group_items(self, menu, g):
         run = g.state in RUNNING
+        if self.standard:
+            closed = [m for m in g.members if not self.mgr._alive(m) and self.mgr.progress.get(m.character) != 'finished']
+            self.add_active_items(menu, g, None, 'opens with Start')
+            self.add_auto_item(menu, g.all_members)
+            self.add_item(menu, 'Start now', lambda: self.group_action('start_now', g), bool(closed))
+            self.add_item(menu, 'Restart group bots', lambda: self.group_action('restart', g), run)
+            self.add_item(menu, 'Close group', lambda: self.group_action('kill', g), run)
+            self.add_item(menu, 'Mark finished', lambda: self.group_action('mark_done', g), g.state != 'done')
+            self.add_item(menu, 'Reset to pending', lambda: self.group_action('reset', g), not run)
+            menu.add_separator()
+            self.add_bot_menu(menu, [m for m in g.all_members if self.mgr._alive(m)])
+            return
         self.add_active_items(menu, g, None, 'started with the others')
         self.add_item(menu, 'Start now', lambda: self.group_action('start_now', g), not run)
         self.add_item(menu, 'Finish now (return + done)', lambda: self.group_action('finish', g), run)
@@ -676,6 +731,21 @@ class App:
         sub = tk.Menu(menu, tearoff=0)
         self.add_bot_items(sub, members)
         menu.add_cascade(label='     phBot', menu=sub, foreground=DARK['fg'] if members else DARK['dim'])
+
+    def add_auto_item(self, menu, members):
+        """Standard: Auto start = the bot opens again whenever it closes by itself"""
+        on = bool(members) and all(m.character in self.mgr.auto for m in members)
+        menu.add_command(label=('✓   ' if on else '     ') + 'Auto start  (opens again when it closes)',
+                         command=lambda: self.set_auto(members, not on))
+        menu.add_separator()
+
+    def set_auto(self, members, on):
+        self.mgr.set_auto_start(members, on)
+        self.refresh(schedule=False)
+
+    def open_member(self, g, m):
+        self.mgr.open_member(g, m)
+        self.refresh(schedule=False)
 
     # -------------------------------------------------- training spots
     def add_spot_menu(self, menu, g, m):
@@ -732,10 +802,14 @@ class App:
         it(menu, 'Go Clientless', lambda: self.go_clientless(members))
         it(menu, 'Go Client...', lambda: self.go_client(members))
         sep()
-        it(menu, 'Start Bot', lambda: self.mgr.member_command(members, 'start'))
-        it(menu, 'Stop Bot', lambda: self.mgr.member_command(members, 'stop'))
-        sep()
-        it(menu, 'Auto Equip (MoAutoEquip)', lambda: self.mgr.member_command(members, 'auto_equip'))
+        if self.standard:       # the plugin is idle there: phBot's own Start / Stop, no Auto Equip
+            it(menu, 'Start Bot', cmd('start_bot'))
+            it(menu, 'Stop Bot', cmd('stop_bot'))
+        else:
+            it(menu, 'Start Bot', lambda: self.mgr.member_command(members, 'start'))
+            it(menu, 'Stop Bot', lambda: self.mgr.member_command(members, 'stop'))
+            sep()
+            it(menu, 'Auto Equip (MoAutoEquip)', lambda: self.mgr.member_command(members, 'auto_equip'))
         sep()
         it(menu, 'Start Trace...', lambda: self.ask_then(members, 'start_trace', 'player', 'Player Name',
                                                          'Enter the name of the player to trace:'))
@@ -882,7 +956,7 @@ class App:
             messagebox.showinfo('MassLeveler', 'Select a group (or one of its characters) first.')
             return
         if action == 'start_now':
-            if not self.mgr.thread or not self.mgr.thread.is_alive():
+            if not self.standard and (not self.mgr.thread or not self.mgr.thread.is_alive()):
                 self.mgr.start()
                 self.mgr.pause()          # loop runs, but only this group is started
             self.mgr.start_group_now(g)
@@ -1021,7 +1095,7 @@ class App:
             counts[g.state] = counts.get(g.state, 0) + 1
             run = g.state in RUNNING
             garea = ''
-            if run:
+            if run and not self.standard:
                 try:
                     area, spots, i = self.mgr.group_area(g)
                     if area:
@@ -1042,7 +1116,9 @@ class App:
                 state = st.get('state', '') + (' (dead)' if dead else '')
                 if st.get('message'):
                     state += ' - ' + st['message']
-                color = 'skipped' if m.skip or g.state == 'skipped' else 'bad' if dead or st.get('state') == 'error' else \
+                if self.standard and m.character in self.mgr.auto:
+                    state += '   (auto start)'
+                color ='skipped' if m.skip or g.state == 'skipped' else 'bad' if dead or st.get('state') == 'error' else \
                     'escort' if g.escort else 'done' if st.get('state') == 'done' or \
                     self.mgr.progress.get(m.character) == 'finished' else ''
                 self.put(g.gid + '|' + m.character, g.gid, m.character,
@@ -1065,6 +1141,62 @@ class App:
         self.shown[iid] = shown
 
 
+def choose_mode(root):
+    """the first window: Standard (a plain phBot manager) or Mass Leveler, the last one used selected.
+    'standard' / 'mass', or None when it is closed. A mode stays until the program is closed."""
+    path = ml_core.path_in_root('data/last_mode.json')
+    last = (ml_core.read_json(path, {}) or {}).get('mode')
+    choice, sel = tk.StringVar(value=''), tk.StringVar(value=last if last in ('standard', 'mass') else 'mass')
+    root.title('MassLeveler Escort')
+    root.resizable(False, False)
+    root.protocol('WM_DELETE_WINDOW', lambda: choice.set('quit'))
+    f = ttk.Frame(root, padding=16)
+    f.pack(fill='both', expand=True)
+    ttk.Label(f, text='Open as:').grid(row=0, column=0, columnspan=2, sticky='w', pady=(0, 8))
+    cards = {}
+    for col, (mode, title, text) in enumerate((
+            ('standard', 'Standard', 'A phBot manager: open the ticked characters,\nstart / stop their bots, phBot menu.\n'
+                                     'No leveling.'),
+            ('mass', 'Mass Leveler', 'Group leveling with the escort,\nas it is now.\n'))):
+        card = tk.Frame(f, bg=DARK['panel'], highlightthickness=2, cursor='hand2', padx=12, pady=10)
+        card.grid(row=1, column=col, sticky='nsew', padx=(0, 8) if col == 0 else 0)
+        tk.Label(card, text=title, bg=DARK['panel'], fg=DARK['fg'], font=('Segoe UI', 10, 'bold'),
+                 anchor='w').pack(fill='x')
+        tk.Label(card, text=text, bg=DARK['panel'], fg=DARK['dim'], justify='left', anchor='w').pack(fill='x', pady=(4, 0))
+        for w in (card,) + tuple(card.winfo_children()):
+            w.bind('<Button-1>', lambda e, m=mode: choice.set(m))
+            w.bind('<Enter>', lambda e, m=mode: sel.set(m))
+        cards[mode] = card
+
+    def show(*_):
+        for m, c in cards.items():
+            color = DARK['accent'] if sel.get() == m else DARK['line']
+            c.configure(highlightbackground=color, highlightcolor=color)
+    sel.trace_add('write', show)
+    show()
+    ttk.Label(f, foreground=DARK['dim'], text='Enter opens the selected one. To switch later, close and open again.').grid(
+        row=2, column=0, columnspan=2, sticky='w', pady=(10, 0))
+    keys = {'<Return>': lambda e: choice.set(sel.get()), '<Left>': lambda e: sel.set('standard'),
+            '<Right>': lambda e: sel.set('mass')}
+    for key, fn in keys.items():
+        root.bind(key, fn)
+    root.update_idletasks()
+    root.geometry('+%d+%d' % ((root.winfo_screenwidth() - root.winfo_reqwidth()) // 2,
+                              (root.winfo_screenheight() - root.winfo_reqheight()) // 3))
+    dark_title(root)
+    root.focus_force()
+    root.wait_variable(choice)
+    for key in keys:
+        root.unbind(key)
+    f.destroy()
+    root.resizable(True, True)
+    dark_title(root)        # changing resizable gives the window a light title bar again
+    if choice.get() not in ('standard', 'mass'):
+        return None
+    ml_core.write_json(path, {'mode': choice.get()})
+    return choice.get()
+
+
 def main():
     root = tk.Tk()
     if getattr(sys, 'frozen', False):
@@ -1073,7 +1205,11 @@ def main():
         except tk.TclError:
             pass
     apply_dark(root)
-    App(root)
+    mode = choose_mode(root)
+    if not mode:
+        root.destroy()
+        return
+    App(root, mode)
     dark_title(root)
     root.mainloop()
 
