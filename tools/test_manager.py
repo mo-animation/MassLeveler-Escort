@@ -382,6 +382,17 @@ check(ml_core.with_high_spots([{'name': 'Free', 'min_level': 80, 'free': True}],
 check(ml_core.high_spots({'escort_high_spot': WP}) == {'80': WP}, 'old single escort_high_spot = the 80 spot')
 check(ml_core.high_spots({'escort_high_spot': WP, 'escort_high_spots': {'80': None}}) == {'80': None},
       'new setting wins over the old one')
+WING = {'name': 'Wing Peak', 'min_level': 64, 'max_level': 79, 'reverse': 'Heart Peak', 'x': 0, 'y': 0}
+stg = ml_core.with_free_levels([WING] + FREE2, [85, 90])
+check([(st['min_level'], st['max_level']) for st in stg] == [(64, 84), (85, 89), (90, 100)],
+      'move levels typed in the dialog: 85 and 90, the stage before each ends a level earlier')
+check(ml_core.stage_for(stg, 84)['name'] == 'Wing Peak' and ml_core.stage_for(stg, 89)['name'] == 'Free'
+      and ml_core.stage_for(stg, 90)['name'] == 'Free 95', 'levels 84 / 89 / 90 pick Wing / move 1 / move 2')
+check(FREE2[0]['min_level'] == 80, 'the stages of settings.json are not changed')
+check([st['min_level'] for st in ml_core.with_free_levels([WING] + FREE2, None)] == [64, 80, 95], 'no levels: as in settings.json')
+stg = ml_core.with_high_spots(ml_core.with_free_levels([WING] + FREE2, [80, 90]), {'90': WP})
+check(stg[2]['reverse'] == 'Heart Peak' and stg[1].get('free'), 'a spot is kept by its move\'s level (90)')
+check(ml_core.DEFAULT_SETTINGS['escort_free_levels'] == [80, 90], 'default moves: 80 and 90')
 
 # Standard mode: a plain phBot manager (no -mlgroup, phBot's own status, its own ticks / finished / Auto start)
 std = dict(settings, standard={'group_size': 2, 'launch_delay_seconds': 0.3, 'disconnect_restart_seconds': 0.5,

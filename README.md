@@ -51,7 +51,7 @@ new accounts get new groups at the end.
 | `plugin/MassLeveler.py` | Runs inside phBot. Registers the secondary passcode on new accounts, creates the character with its build's model and items. Collects the item-mall storage. Picks the training area from the **group's lowest level**. Loads the skill profile of its 10-level bracket, uses berserk as soon as it's full, finishes at the final level and reports status. Stays idle in bots the manager didn't start. |
 | `data/builds.json` | **The builds** (CH nuker, EU wizard / cleric / warrior / bard / warlock), each made from one of your own level-110 profiles. Final skill lists, party buffs, creation items. Edit it, then press **Rebuild skill plans** (Settings → Builds). |
 | `data/builds/<build>.json` + `templates/<build>.json` | Made by `tools/make_builds.py`: the 10 brackets of every build and its profile template. Don't edit them by hand. |
-| `settings.json` → `escort_solo_spot` / `escort_stages` | Escort version: levels 1–4 alone at the solo spot (Jangan gate, the profiles' only training area), then the escort's 4 stages. There is no level plan any more. |
+| `settings.json` → `escort_solo_spot` / `escort_stages` | Escort version: levels 1–4 alone at the solo spot (Jangan gate, the profiles' only training area), then the escort's 4 stages. There is no level plan any more. After them come the two moves of Settings → Escort: the level each starts at (default 80 and 90, by the group's lowest level) and its spot (empty = you drive the escort). |
 
 ## Builds, groups and the 10 skill profiles
 

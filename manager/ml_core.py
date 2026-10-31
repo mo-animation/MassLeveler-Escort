@@ -105,6 +105,7 @@ DEFAULT_SETTINGS = {
     'job_skills': ['Job - Trader Pouch'],
     'escort_high_spots': {},       # settings dialog: {'80': {region, x, y, z, reverse, reverse_auto}, '95': ...}
                                     # for the free stages by min_level (no spot = free, the user drives the escort)
+    'escort_free_levels': [80, 90],  # settings dialog: the level each free stage starts at, in order
     'escort_wait_seconds': 10,
     'escort_gather_distance': 60,   # a member this close to the escort has arrived
     'escort_solo_level': 5,         # below it nobody can invite to a party: every member levels alone (plan areas)
@@ -151,6 +152,22 @@ def high_spots(s):
     if s.get('escort_high_spot') and '80' not in spots:
         spots['80'] = s['escort_high_spot']
     return spots
+
+
+def with_free_levels(stages, levels):
+    """the free stages (80+, 95+ in settings.json) start at the levels typed in the settings dialog, in order;
+    the stage before each one ends a level earlier"""
+    out = [dict(st) for st in stages or []]
+    free = [i for i, st in enumerate(out) if st.get('free')]
+    for i, lv in zip(free, levels or []):
+        try:
+            lv = int(lv)
+        except (TypeError, ValueError):
+            continue
+        out[i]['min_level'] = lv
+        if i:
+            out[i - 1]['max_level'] = lv - 1
+    return out
 
 
 def with_high_spots(stages, spots):
@@ -346,7 +363,8 @@ def load_settings(path=None, mode='mass'):
     # the folder is copied between PCs with phBot in different places: the first phBot folder that exists
     if not os.path.isdir(s['phbot_dir']):
         s['phbot_dir'] = next((p for p in s.get('phbot_dirs') or [] if os.path.isdir(p)), s['phbot_dir'])
-    s['escort_stages'] = with_high_spots(s['escort_stages'], high_spots(s))
+    s['escort_stages'] = with_high_spots(with_free_levels(s['escort_stages'], s.get('escort_free_levels')),
+                                         high_spots(s))
     for st in s['escort_stages']:       # a name typed in another case is spelled the game's way
         if st.get('reverse'):
             st['reverse'] = exact_reverse(s['phbot_dir'], st['reverse']) or st['reverse']

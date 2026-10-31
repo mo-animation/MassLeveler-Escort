@@ -325,30 +325,34 @@ class SettingsDialog:
         self.nb.select(min(page, self.nb.index('end') - 1))
 
     def escort_page(self, escort):
-        """one spot per free stage of settings.json (80+, 95+): empty = free, the user drives the escort"""
+        """one move per free stage of settings.json: the level it starts at (80, 90...) and its spot; empty spot =
+        free, the user drives the escort"""
         s = self.app.mgr.s
         spots = ml_core.high_spots(s)
         r = 0
-        for lv in [str(st['min_level']) for st in s.get('escort_stages') or [] if st.get('user_spot')]:
+        for n, lv in enumerate([str(st['min_level']) for st in s.get('escort_stages') or [] if st.get('user_spot')]):
             if r:
                 ttk.Separator(escort).grid(row=r, column=0, columnspan=3, sticky='ew', pady=8)
                 r += 1
             sp = spots.get(lv) or {}
-            ttk.Label(escort, text='Level %s+ spot (region,X,Y,Z)' % lv).grid(row=r, column=0, sticky='w', pady=3,
-                                                                              padx=(0, 12))
+            ttk.Label(escort, text='Move %d at level' % (n + 1)).grid(row=r, column=0, sticky='w', pady=3, padx=(0, 12))
+            lv_v = tk.StringVar(value=lv)
+            ttk.Spinbox(escort, from_=2, to=100, textvariable=lv_v, width=6).grid(row=r, column=1, sticky='w')
+            ttk.Label(escort, text='Spot (region,X,Y,Z)').grid(row=r + 1, column=0, sticky='w', pady=3)
             spot_v = tk.StringVar(value='%d,%g,%g,%g' % (sp.get('region', 0), sp['x'], sp['y'], sp.get('z', 0))
                                   if sp else '')
-            ttk.Entry(escort, textvariable=spot_v, width=30).grid(row=r, column=1, sticky='w')
-            ttk.Label(escort, text='Reverse scroll to').grid(row=r + 1, column=0, sticky='w', pady=3)
+            ttk.Entry(escort, textvariable=spot_v, width=30).grid(row=r + 1, column=1, sticky='w')
+            ttk.Label(escort, text='Reverse scroll to').grid(row=r + 2, column=0, sticky='w', pady=3)
             rev_v = tk.StringVar(value='' if sp.get('reverse_auto', True) else sp.get('reverse', ''))
-            ttk.Entry(escort, textvariable=rev_v, width=30).grid(row=r + 1, column=1, sticky='w')
+            ttk.Entry(escort, textvariable=rev_v, width=30).grid(row=r + 2, column=1, sticky='w')
             if sp.get('reverse'):
                 ttk.Label(escort, text='now: ' + sp['reverse'], foreground=DARK['dim']).grid(
-                    row=r + 1, column=2, sticky='w', padx=6)
-            self.high.append((lv, spot_v, rev_v))
-            r += 2
+                    row=r + 2, column=2, sticky='w', padx=6)
+            self.high.append((lv_v, spot_v, rev_v))
+            r += 3
         ttk.Label(escort, foreground=DARK['dim'], wraplength=460, text=(
-            'Empty spot = free: you drive the escort.   Empty reverse = the nearest reverse point.' if self.high
+            'The group moves when its lowest member reaches the level.   Empty spot = free: you drive the escort.   '
+            'Empty reverse = the nearest reverse point.' if self.high
             else 'settings.json has no free escort stage.')).grid(row=r, column=0, columnspan=3, sticky='w', pady=(10, 0))
 
     def builds_page(self, builds):
@@ -506,7 +510,23 @@ class SettingsDialog:
         self.keep_slots()
         out['escort_high_spot'] = None      # the old single 80+ spot, now in escort_high_spots
         out['escort_high_spots'] = {}
-        for lv, spot_v, rev_v in self.high:
+        stages = self.app.mgr.s.get('escort_stages') or []
+        low = max([st['min_level'] for st in stages if not st.get('user_spot')] or [1])   # Wing Peak 64
+        levels = []
+        for n, (lv_v, _, _) in enumerate(self.high):
+            try:
+                lv = int(lv_v.get())
+            except ValueError:
+                lv = 0
+            if not (levels[-1] if levels else low) < lv <= 100:
+                self.nb.select(2)
+                messagebox.showwarning('Settings', 'Move %d: write a level from %d to 100%s.' % (
+                    n + 1, (levels[-1] if levels else low) + 1, ', above move %d' % n if n else ''), parent=self.top)
+                return
+            levels.append(lv)
+        out['escort_free_levels'] = levels
+        for (_, spot_v, rev_v), lv in zip(self.high, levels):
+            lv = str(lv)
             text = spot_v.get().strip()
             if not text:
                 continue
