@@ -286,6 +286,10 @@ class SettingsDialog:
             ttk.Button(row, text='Open proxies.csv', command=lambda: app.open_path(s['proxies_csv'])).pack(
                 side='left', padx=(6, 0))
         ttk.Button(row, text='Reload accounts and settings', command=self.reload).pack(side='left', padx=(6, 0))
+        if mgr.deleted:
+            ttk.Button(general, text='Restore deleted (%d): %s' % (len(mgr.deleted), ', '.join(sorted(mgr.deleted)[:6]) +
+                                                                  (' ...' if len(mgr.deleted) > 6 else '')),
+                       command=self.restore).grid(row=r + 2, column=0, columnspan=3, sticky='w', pady=(8, 0))
 
         if app.standard:
             r = self.fields(groups, 0, [('group_size', 'Players per group', 'spin8'),
@@ -419,6 +423,12 @@ class SettingsDialog:
         self.show_phbot()
         for prob in self.app.mgr.problems():
             self.app._log('CHECK: ' + prob)
+
+    def restore(self):
+        """the deleted characters come back (in new groups at the end)"""
+        self.top.destroy()
+        self.app.mgr.restore_deleted()
+        self.app.rebuild_tree()
 
     def reload(self):
         """accounts.csv / settings.json changed by hand: read them again and show the new values"""
@@ -569,6 +579,9 @@ class App:
         self.tree.heading('#0', text='Group / character', anchor='w')
         self.tree.column('#0', width=170, stretch=False)
         self.tree.bind('<Button-1>', self.on_click)
+        self.tree.bind('<B1-Motion>', self.on_drag)          # drag a character onto another group
+        self.tree.bind('<ButtonRelease-1>', self.on_drop)
+        self.drag = None
         self.tree.bind('<space>', lambda e: self.toggle(self.tree.focus()) or 'break')
         self.tree.bind('<Button-3>', self.on_menu)
         for c in COLUMNS:
@@ -625,6 +638,45 @@ class App:
             self.tree.selection_set(iid)
             self.toggle(iid)
             return 'break'
+        g, m = self.item(iid)
+        self.drag = {'m': m, 'y': e.y, 'on': False} if m and not g.escort else None
+
+    # -------------------------------------------------- drag and drop: a character into another group
+    def drop_group(self, y):
+        """the group under the mouse (its row or one of its characters), None = empty space (a new group)"""
+        return self.item(self.tree.identify_row(y))[0]
+
+    def on_drag(self, e):
+        if not self.drag:
+            return
+        if not self.drag['on'] and abs(e.y - self.drag['y']) > 6:
+            self.drag['on'] = True
+            self.tree.configure(cursor='fleur')
+        if self.drag['on']:
+            g = self.drop_group(e.y)
+            self.tree.selection_set(g.gid if g else ())
+            return 'break'
+
+    def on_drop(self, e):
+        d, self.drag = self.drag, None
+        if not d or not d['on']:
+            return
+        self.tree.configure(cursor='')
+        g = self.drop_group(e.y)
+        target = self.mgr.move_member(d['m'], g)
+        self.rebuild_tree()
+        if target:
+            self.tree.item(target.gid, open=True)
+            iid = target.gid + '|' + d['m'].character
+            self.tree.selection_set(iid)
+            self.tree.see(iid)
+        return 'break'
+
+    def delete(self, members, what):
+        if messagebox.askyesno('Delete', 'Delete %s?\n\nThey are not shown again (Settings: Restore deleted brings '
+                               'them back). accounts.csv is not changed.' % what):
+            if self.mgr.delete_members(members):
+                self.rebuild_tree()
 
     def toggle(self, iid):
         g, m = self.item(iid)
@@ -665,6 +717,7 @@ class App:
                 self.add_item(menu, 'Close', lambda: self.terminate([m]), alive)
                 menu.add_separator()
                 self.add_bot_menu(menu, [m] if alive else [])
+                self.add_edit_items(menu, g, m)
                 menu.add_separator()
                 sub = tk.Menu(menu, tearoff=0)
                 self.add_group_items(sub, g)
@@ -675,6 +728,7 @@ class App:
                 menu.add_separator()
                 self.add_spot_menu(menu, g, m)
                 self.add_bot_menu(menu, [m] if g.state in RUNNING else [])
+                self.add_edit_items(menu, g, m)
                 menu.add_separator()
                 sub = tk.Menu(menu, tearoff=0)
                 self.add_group_items(sub, g)
@@ -713,6 +767,7 @@ class App:
             self.add_item(menu, 'Reset to pending', lambda: self.group_action('reset', g), not run)
             menu.add_separator()
             self.add_bot_menu(menu, [m for m in g.all_members if self.mgr._alive(m)])
+            self.add_edit_items(menu, g)
             return
         self.add_active_items(menu, g, None, 'started with the others')
         self.add_item(menu, 'Start now', lambda: self.group_action('start_now', g), not run)
@@ -725,6 +780,26 @@ class App:
         menu.add_separator()
         self.add_spot_menu(menu, g, None)
         self.add_bot_menu(menu, list(g.members) if run else [])
+        self.add_edit_items(menu, g)
+
+    def add_edit_items(self, menu, g, m=None):
+        """groups by hand: a group of its own, delete (not while the group runs, never the escort)"""
+        ok = g.state not in RUNNING and not g.escort
+        menu.add_separator()
+        if m:
+            self.add_item(menu, 'Move to a new group  (or drag it onto a group)', lambda: self.move_new(m),
+                          ok and len(g.all_members) > 1)
+            self.add_item(menu, 'Delete %s  (not shown again)' % m.character, lambda: self.delete([m], m.character), ok)
+        else:
+            self.add_item(menu, 'Delete group %s  (not shown again)' % g.gid, lambda: self.delete(
+                list(g.all_members), 'group %s (%s)' % (g.gid, names(g.all_members))), ok)
+
+    def move_new(self, m):
+        target = self.mgr.move_member(m, None)
+        self.rebuild_tree()
+        if target:
+            self.tree.item(target.gid, open=True)
+            self.tree.selection_set(target.gid + '|' + m.character)
 
     def add_bot_menu(self, menu, members):
         """phBot's own Manager menu, as a submenu"""

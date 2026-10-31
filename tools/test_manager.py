@@ -490,6 +490,36 @@ check(p8['InviteList'] == [names8[0]] and p8['AutoAcceptParty'],
 mgr8.update_escort_party()
 check(json.load(open(os.path.join(cfg, 'Elysian_wiz01.json')))['Party']['InviteList'] == names8[8:],
       'the escort invites only the groups of 7')
+# groups by hand: drag a character into another group / a new one, delete, restore; kept in the layout file
+lay_path = os.path.join(TMP, 'settings_lay.json')
+json.dump(dict(esc_s, first_groups={'characters': 8, 'size': 8}, layout=os.path.join(TMP, 'layout_t.json')),
+          open(lay_path, 'w'))
+llog = []
+mgrL = ml_core.Manager(lay_path, log=llog.append)
+L = {g.gid: g for g in mgrL.groups}
+lone = L['G003'].members[0]
+check(mgrL.move_member(lone, L['G002']) is L['G002'] and len(L['G002'].members) == 8 and
+      'G003' not in [g.gid for g in mgrL.groups], 'dropped onto another group: moved, the empty group is gone')
+first = L['G001'].members[0]
+newg = mgrL.move_member(first, None)
+check(newg and newg.gid == 'G003' and [g.gid for g in mgrL.groups if not g.escort] == ['G001', 'G003', 'G002'],
+      'dropped onto empty space: a new group of its own, right after its old one')
+check(mgrL.move_member(L['G001'].members[0], L['G002']) is None and any('party limit' in l for l in llog),
+      'a group of 8 takes nobody more (party limit)')
+L['G001'].state = 'running'
+check(mgrL.move_member(L['G001'].members[0], None) is None and not mgrL.delete_members([L['G001'].members[0]]),
+      'a running group cannot be changed')
+L['G001'].state = 'pending'
+gone = L['G001'].members[0]
+check(mgrL.delete_members([gone]) and gone.character in mgrL.deleted, 'a deleted character is gone')
+check(not mgrL.delete_members(mgrL.groups[0].all_members), 'the escort cannot be deleted')
+before = [(g.gid, [m.character for m in g.all_members]) for g in mgrL.groups]
+mgrL2 = ml_core.Manager(lay_path, log=lambda m: None)
+check([(g.gid, [m.character for m in g.all_members]) for g in mgrL2.groups] == before,
+      'the groups stay as arranged when it opens again (the deleted one too)')
+mgrL2.restore_deleted()
+check(mgrL2.groups[-1].all_members[0].character == gone.character and not mgrL2.deleted,
+      'Restore deleted: it comes back in a new group at the end')
 mgr8S = ml_core.Manager(os.path.join(TMP, 'settings_esc8.json'), log=lambda m: None, mode='standard')
 check([len(g.members) for g in mgr8S.groups if not g.escort] == [8, 8], 'Standard is not affected')
 

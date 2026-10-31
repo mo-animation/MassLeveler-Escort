@@ -9,6 +9,8 @@ data/standard_progress.json
 data/standard_skip.json
 data/standard_auto.json
 data/last_mode.json
+data/layout.json
+data/standard_layout.json
 
 # build leftovers
 __pycache__/

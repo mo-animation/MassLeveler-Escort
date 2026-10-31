@@ -96,6 +96,7 @@ DEFAULT_SETTINGS = {
     'proxies_csv': 'proxies.csv',
     'progress': 'data/progress.json',
     'skip': 'data/skip.json',       # groups / characters switched off in the dashboard
+    'layout': 'data/layout.json',   # groups arranged by hand (drag and drop) + deleted characters
     # escort: the group's lowest level picks the stage; everyone reverses to `reverse`, the escort waits there
     # until the whole group is around it + escort_wait_seconds, then hunts at (region, x, y, z) with
     # training_radius while the group traces it (attack = the group attacks too)
@@ -117,6 +118,7 @@ STANDARD_DEFAULTS = {
     'progress': 'data/standard_progress.json',
     'skip': 'data/standard_skip.json',
     'auto_start': 'data/standard_auto.json',     # characters opened again whenever their bot closes by itself
+    'layout': 'data/standard_layout.json',
 }
 ESCORT_GID = 'ESCORT'
 
@@ -673,9 +675,15 @@ def group_size(s, escort_party):
     return min(size, PARTY_MAX - 1) if escort_party else size
 
 
-def load_groups(s, progress, skip=None, escort_party=False):
-    """skip = {'groups': [gid], 'characters': [name]} switched off in the dashboard"""
+def next_group_number(groups):
+    return max([int(g.gid[1:]) for g in groups if re.match(r'G\d+$', g.gid)] + [0]) + 1
+
+
+def load_groups(s, progress, skip=None, escort_party=False, layout=None):
+    """skip = {'groups': [gid], 'characters': [name]} switched off in the dashboard. layout = the groups as
+    arranged by hand (drag and drop) and the deleted characters: they stay so; new accounts get new groups."""
     skip = skip or {}
+    layout = layout or {}
     rows = read_csv_rows(path_in_root(s['accounts_csv']))
     n = s['name_start']
     explicit, ordered, escort = {}, [], []
@@ -694,16 +702,27 @@ def load_groups(s, progress, skip=None, escort_party=False):
         else:
             ordered.append(m)
     groups = [Group(ESCORT_GID, escort)] if escort else []
+    by_name = {m.character: m for m in ordered + [x for ms in explicit.values() for x in ms]}
+    placed = set(layout.get('deleted') or [])
+    for gid, names in layout.get('groups') or []:
+        ms = [by_name[n] for n in names if n in by_name and n not in placed]
+        placed.update(m.character for m in ms)
+        if ms:
+            groups.append(Group(gid, ms))
     for gid, members in explicit.items():
-        groups.append(Group('G-' + gid, members))
+        members = [m for m in members if m.character not in placed]
+        if members:
+            groups.append(Group('G-' + gid, members))
+    ordered = [m for m in ordered if m.character not in placed]
     size = group_size(s, escort_party and bool(escort))
     # groups that played before the escort led the party keep their size (first_groups); the rest come after
-    first = (s.get('first_groups') or {}) if escort_party and escort else {}
+    first = (s.get('first_groups') or {}) if escort_party and escort and not layout.get('groups') else {}
     keep = min(int(first.get('characters', 0)), len(ordered))
     chunks = [ordered[i:i + int(first.get('size', size))] for i in range(0, keep, int(first.get('size', size)))]
     chunks += [ordered[i:i + size] for i in range(keep, len(ordered), size)]
+    start = next_group_number(groups)
     for i, chunk in enumerate(chunks):
-        groups.append(Group('G%03d' % (i + 1), chunk))
+        groups.append(Group('G%03d' % (start + i), chunk))
     comp = composition(s)
     for g in groups:
         for i, m in enumerate(g.all_members):        # a character keeps its slot's build when others are skipped
@@ -1048,7 +1067,10 @@ class Manager:
                     self.builds[bid] = read_json(os.path.join(bdir, f), {}) or {}
                     self.templates[bid] = read_json(os.path.join(path_in_root(self.s['templates_dir']), f), {}) or {}
             old = {g.gid: g for g in getattr(self, 'groups', [])}
-            self.groups = load_groups(self.s, self.progress, self.skip, escort_party=not self.standard)
+            self.layout_path = path_in_root(self.s['layout'])
+            layout = read_json(self.layout_path, {}) or {}
+            self.deleted = set(layout.get('deleted') or [])
+            self.groups = load_groups(self.s, self.progress, self.skip, escort_party=not self.standard, layout=layout)
             for g in self.groups:       # keep live groups when reloading while running
                 if g.gid in old and old[g.gid].state in ('launching', 'running'):
                     self.groups[self.groups.index(g)] = old[g.gid]
@@ -1503,6 +1525,68 @@ class Manager:
                 group_state(g, self.progress, self.skip)
             self.log('%s %s (%s: %s)' % (m.character, 'skipped' if skip else 'active', g.gid,
                                          ', '.join(x.character for x in g.members) or 'nobody'))
+
+    # -------------------------------------------------- groups by hand (drag and drop, delete)
+    def save_layout(self):
+        """from the first change on, the groups stay as arranged (layout file of this mode)"""
+        write_json(self.layout_path, {'groups': [[g.gid, [m.character for m in g.all_members]]
+                                                 for g in self.groups if not g.escort],
+                                      'deleted': sorted(self.deleted)})
+
+    def _editable(self, groups):
+        busy = [g.gid for g in groups if g.state in ('launching', 'running')]
+        if busy:
+            self.log('%s is running - close it first to change it' % ', '.join(busy))
+        return not busy
+
+    def _changed(self, groups):
+        for g in groups:
+            g.use_members()
+            group_state(g, self.progress, self.skip)
+        self.groups = [g for g in self.groups if g.all_members]
+        self.save_layout()
+        if not self.standard:
+            self.update_escort_party()      # its invite list: the groups of 7
+
+    def move_member(self, m, target=None):
+        """m goes into the group target (None = a new group of its own); returns that group, or None"""
+        with self.lock:
+            src = next((g for g in self.groups if m in g.all_members), None)
+            if not src or src is target or src.escort or (target and target.escort) or \
+                    not self._editable([src] + ([target] if target else [])):
+                return None
+            if target and len(target.all_members) >= PARTY_MAX:
+                self.log('%s already has %d characters (party limit)' % (target.gid, PARTY_MAX))
+                return None
+            src.all_members.remove(m)
+            if target is None:
+                target = Group('G%03d' % next_group_number(self.groups), [])
+                self.groups.insert(self.groups.index(src) + 1, target)
+            target.all_members.append(m)
+            self._changed([src, target])
+            self.log('%s moved from %s to %s' % (m.character, src.gid, target.gid))
+            return target
+
+    def delete_members(self, members):
+        """never shown again (Settings: Restore deleted brings them back); not while their group runs"""
+        with self.lock:
+            groups = [g for g in self.groups if any(m in g.all_members for m in members)]
+            if not groups or any(g.escort for g in groups) or not self._editable(groups):
+                return False
+            for g in groups:
+                g.all_members = [m for m in g.all_members if m not in members]
+            self.deleted.update(m.character for m in members)
+            self._changed(groups)
+            self.log('Deleted %s' % ', '.join(m.character for m in members))
+            return True
+
+    def restore_deleted(self):
+        with self.lock:
+            names = sorted(self.deleted)
+            self.deleted.clear()
+            self.save_layout()
+        self.reload()           # they come back in new groups at the end
+        self.log('Restored %s' % (', '.join(names) or 'nothing'))
 
     # -------------------------------------------------- control
     def start(self):

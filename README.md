@@ -25,6 +25,14 @@ MassLeveler.bat ──► manager (desktop dashboard)
   Standard keeps its own ticks, finished marks and Auto start list (`data/standard_*.json`) and its own settings
   (`settings.json` → `standard`): groups of 8, every bot on this PC's connection (no proxies).
 
+## Arranging groups by hand
+
+Drag a character onto another group (its row or one of its characters), or onto empty space (or right-click →
+Move to a new group) for a group of its own. Right-click → Delete hides a character or a whole group for good
+(Settings → General → Restore deleted brings them back; accounts.csv is not changed). Not while the group runs.
+From the first change on the groups stay as arranged (`data/layout.json`, Standard: `data/standard_layout.json`);
+new accounts get new groups at the end.
+
 ## What each part does
 
 | Part | Job |
