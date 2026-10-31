@@ -1,0 +1,13 @@
+# never uploaded: account passwords, proxies, and what each PC keeps for itself
+accounts.csv
+proxies.csv
+data/progress.json
+data/skip.json
+data/custom_spots.json
+data/bad_spots.json
+
+# build leftovers
+__pycache__/
+*.pyc
+_build_*/
+*.exe.old

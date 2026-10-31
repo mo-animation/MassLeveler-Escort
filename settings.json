@@ -1,0 +1,77 @@
+{
+  "phbot_dir": "D:/silkroad/new/phBot Escort",
+  "phbot_dirs": ["D:/silkroad/new/phBot Escort", "D:/Games/silkroad/bots/phBot Escort"],
+  "phbot_command": [
+    "phBot.exe"
+  ],
+  "server": "Elysian",
+  "login_args": [],
+  "extra_args": [
+    "--skipupdates",
+    "--relogdc"
+  ],
+  "leader_mode": "client",
+  "member_mode": "client",
+  "member_client_args": [],
+  "hide_client": true,
+  "minimize_bots": true,
+  "group_size": 8,
+  "name_prefix": "fnuk",
+  "name_start": 1,
+  "name_digits": 2,
+  "max_characters": 4,
+  "passcode_digits": 8,
+  "final_level": 100,
+  "party_invite_type": 3,
+  "collect_levels": [],
+  "max_parallel_groups": 1,
+  "use_direct_ip": true,
+  "launch_delay_seconds": 20,
+  "stale_minutes": 10,
+  "login_timeout_minutes": 4,
+  "max_restarts": 5,
+  "hide_leader_client": false,
+  "plans": {},
+  "compositions": {
+    "CH nukers": [
+      "ch_nuker",
+      "ch_nuker",
+      "ch_nuker",
+      "ch_nuker",
+      "ch_nuker",
+      "ch_nuker",
+      "ch_nuker",
+      "ch_nuker"
+    ],
+    "EU party": [
+      "eu_warrior",
+      "eu_cleric",
+      "eu_bard",
+      "eu_wizard",
+      "eu_wizard",
+      "eu_wizard",
+      "eu_wizard"
+    ]
+  },
+  "composition": "CH nukers",
+  "accounts_csv": "accounts.csv",
+  "proxies_csv": "proxies.csv",
+  "disconnect_restart_seconds": 10,
+  "training_radius": 40,
+  "escort_stages": [
+    {"name": "Ong Habitat", "min_level": 1, "max_level": 31, "reverse": "Ong Habitat",
+     "region": 26219, "x": -5247, "y": 2057, "z": 194, "attack": false},
+    {"name": "Karakoram Penon", "min_level": 32, "max_level": 51, "reverse": "Ancient Remains",
+     "region": 23167, "x": -1477, "y": -371, "z": 800, "attack": false},
+    {"name": "Karra Fertility Temple", "min_level": 52, "max_level": 63, "reverse": "Fertility Temple",
+     "region": 26503, "x": 100, "y": 2181, "z": -474, "attack": true},
+    {"name": "Wing Peak", "min_level": 64, "max_level": 79, "reverse": "Heart Peak",
+     "region": 23664, "x": -4303, "y": 82, "z": 4209, "attack": true},
+    {"name": "Free (with the escort)", "min_level": 80, "max_level": 94, "free": true, "attack": true},
+    {"name": "Free 95+ (with the escort)", "min_level": 95, "max_level": 100, "free": true, "attack": true}
+  ],
+  "escort_solo_level": 5,
+  "escort_solo_spot": {"name": "Jangan gate", "region": 24744, "x": 6440, "y": 838, "z": -44},
+  "escort_speed_level": 52,
+  "escort_fast_respawn_level": 52
+}

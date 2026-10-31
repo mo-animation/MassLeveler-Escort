@@ -1,0 +1,88 @@
+{
+  "_about": [
+    "One entry per character build. After editing, run:  py -I tools/make_builds.py   (or the dashboard button 'Rebuild skill plans').",
+    "base_profile: your own finished phBot profile of that build (in <phBot>/Config). Masteries, stats, the Auto Mastery list and",
+    "  every other setting come from it.",
+    "skills: the FINAL lists (phBot names), in casting order. null = take them from base_profile. Skills that unlock above",
+    "  final_level are replaced by the best rank of the same line that unlocks by then.",
+    "Every 10 levels gets its own profile (Lv001-010 ... Lv091-100): each final skill is replaced by the best rank of its",
+    "  line unlocked by the end of that bracket. The plugin uses lower ranks until the planned one is learned.",
+    "party_buffs: phBot Party Buffs category -> 'party' (every other member), 'ring' (the next member of the same build;",
+    "  for buffs that can't be cast on self and that every member of the build casts), 'pair' (members of the same build",
+    "  in twos that buff each other: 1<->2, 3<->4 ...; an odd last one pairs with the first), or a list of build ids.",
+    "create: what a missing character is created with (model + chest, legs, shoes, weapon)."
+  ],
+  "final_level": 100,
+  "bracket_size": 10,
+  "builds": {
+    "ch_nuker": {
+      "name": "CH nuker: Fire / Lightning / Cold attacks, Fire imbue, Force buffs",
+      "race": "CH",
+      "base_profile": "Elysian_nuke01.nuke01.json",
+      "create": {"model": "CHAR_CH_MAN_ADVENTURER", "chest": "ITEM_CH_M_HEAVY_01_BA_A_DEF", "legs": "ITEM_CH_M_HEAVY_01_LA_A_DEF",
+                 "shoes": "ITEM_CH_M_HEAVY_01_FA_A_DEF", "weapon": "ITEM_CH_SPEAR_01_A_DEF"},
+      "skills": {
+        "sNormal": ["Flame Wave - HellFire", "Snow Storm - Multi Shot", "Crane's Thunderbolt", "Flame Wave - Disintegrate",
+                    "Snow Storm - Double Shot", "Flame Wave - Bomb", "Execution Lion Shout"],
+        "bNormal": ["Source Therapy", "Cure Therapy - Heaven"],
+        "bScript": [],
+        "Imbue": "Cloud Fire force",
+        "Healing": ["Self Breathing Heal", "Heal - Full Hand"],
+        "Resurrect": ["Return Rebirth Art", "Resurrection - Spirit Calling"]
+      },
+      "party_buffs": {"Magical Buff": "pair", "Physical Buff": "pair"},
+      "heal_party": true
+    },
+    "eu_wizard": {
+      "name": "EU wizard (Wizard / Cleric)",
+      "race": "EU",
+      "base_profile": "Elysian_Death.Sabo.json",
+      "create": {"model": "CHAR_EU_MAN_NOBLE", "chest": "ITEM_EU_M_CLOTHES_01_BA_A_DEF", "legs": "ITEM_EU_M_CLOTHES_01_LA_A_DEF",
+                 "shoes": "ITEM_EU_M_CLOTHES_01_FA_A_DEF", "weapon": "ITEM_EU_TSTAFF_01_A_DEF"},
+      "skills": null,
+      "party_buffs": {},
+      "heal_party": false
+    },
+    "eu_cleric": {
+      "name": "EU cleric (Cleric / Warrior): heals, buffs, resurrects",
+      "race": "EU",
+      "base_profile": "Elysian_clirc01.clirc01.json",
+      "create": {"model": "CHAR_EU_MAN_PRIEST", "chest": "ITEM_EU_M_CLOTHES_01_BA_A_DEF", "legs": "ITEM_EU_M_CLOTHES_01_LA_A_DEF",
+                 "shoes": "ITEM_EU_M_CLOTHES_01_FA_A_DEF", "weapon": "ITEM_EU_STAFF_01_A_DEF"},
+      "skills": null,
+      "party_buffs": {"Int": "party", "Magical Buff": "party", "Physical Buff": "party", "Str": "party"},
+      "heal_party": true
+    },
+    "eu_warrior": {
+      "name": "EU warrior (Warrior / Cleric): tank, fences",
+      "race": "EU",
+      "base_profile": "Elysian_wor01.wor01.json",
+      "create": {"model": "CHAR_EU_MAN_KNIGHT", "chest": "ITEM_EU_M_HEAVY_01_BA_A_DEF", "legs": "ITEM_EU_M_HEAVY_01_LA_A_DEF",
+                 "shoes": "ITEM_EU_M_HEAVY_01_FA_A_DEF", "weapon": "ITEM_EU_SWORD_01_A_DEF"},
+      "skills": null,
+      "party_buffs": {"Physical Fence": "party", "Magical Fence": "party", "Protect": "party",
+                      "Pain Quota": ["eu_wizard", "eu_warlock", "ch_nuker"]},
+      "heal_party": false
+    },
+    "eu_bard": {
+      "name": "EU bard (Bard / Warrior): dances, MP",
+      "race": "EU",
+      "base_profile": "Elysian_bard01.Bard01.json",
+      "create": {"model": "CHAR_EU_MAN_NOBLE", "chest": "ITEM_EU_M_CLOTHES_01_BA_A_DEF", "legs": "ITEM_EU_M_CLOTHES_01_LA_A_DEF",
+                 "shoes": "ITEM_EU_M_CLOTHES_01_FA_A_DEF", "weapon": "ITEM_EU_HARP_01_A_DEF"},
+      "skills": null,
+      "party_buffs": {},
+      "heal_party": false
+    },
+    "eu_warlock": {
+      "name": "EU warlock (Warlock / Warrior): curses and DOTs",
+      "race": "EU",
+      "base_profile": "Elysian_warlock01.warlock01.json",
+      "create": {"model": "CHAR_EU_MAN_NECROMENCER", "chest": "ITEM_EU_M_CLOTHES_01_BA_A_DEF", "legs": "ITEM_EU_M_CLOTHES_01_LA_A_DEF",
+                 "shoes": "ITEM_EU_M_CLOTHES_01_FA_A_DEF", "weapon": "ITEM_EU_DARKSTAFF_01_A_DEF"},
+      "skills": null,
+      "party_buffs": {},
+      "heal_party": false
+    }
+  }
+}

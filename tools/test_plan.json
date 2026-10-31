@@ -1,0 +1,2114 @@
+{
+  "source": "macro_auto_move.txt",
+  "monster_level_offset": 5,
+  "areas": [
+    {
+      "min_level": 1,
+      "max_level": 3,
+      "monster": "Broken Stone Ghost",
+      "monster_level": 8,
+      "servername": "MOB_CH_STONEGHOST_CLON",
+      "town": "Jangan",
+      "region": 25773,
+      "x": 7418.5,
+      "y": 1628.5,
+      "z": 322.3,
+      "radius": 60,
+      "name": "ML 001-003 Broken Stone Ghost",
+      "alternatives": [
+        {
+          "monster": "Water Ghost slave",
+          "monster_level": 6,
+          "servername": "MOB_CH_WATERGHOST_CLON",
+          "region": 25768,
+          "x": 6361.5,
+          "y": 1555.7,
+          "z": 63.6,
+          "radius": 60
+        },
+        {
+          "monster": "Water Ghost",
+          "monster_level": 7,
+          "servername": "MOB_CH_WATERGHOST",
+          "region": 25766,
+          "x": 6117.8,
+          "y": 1538.0,
+          "z": 52.6,
+          "radius": 60
+        },
+        {
+          "monster": "Broken Stone Ghost",
+          "monster_level": 8,
+          "servername": "MOB_CH_STONEGHOST_CLON",
+          "region": 26027,
+          "x": 6988.7,
+          "y": 1756.0,
+          "z": 331.1,
+          "radius": 60
+        }
+      ]
+    },
+    {
+      "min_level": 4,
+      "max_level": 4,
+      "monster": "Stone Ghost",
+      "monster_level": 9,
+      "servername": "MOB_CH_STONEGHOST",
+      "town": "Jangan",
+      "region": 25773,
+      "x": 7416.4,
+      "y": 1724.2,
+      "z": 322.3,
+      "radius": 60,
+      "name": "ML 004-004 Stone Ghost",
+      "alternatives": [
+        {
+          "monster": "Stone Ghost",
+          "monster_level": 9,
+          "servername": "MOB_CH_STONEGHOST",
+          "region": 25771,
+          "x": 7047.6,
+          "y": 1602.3,
+          "z": 240.1,
+          "radius": 60
+        },
+        {
+          "monster": "Decayed Yeoha",
+          "monster_level": 10,
+          "servername": "MOB_CH_YEOHA_CLON",
+          "region": 24996,
+          "x": 5726.0,
+          "y": 1096.9,
+          "z": 423.7,
+          "radius": 59
+        },
+        {
+          "monster": "Decayed Yeoha",
+          "monster_level": 10,
+          "servername": "MOB_CH_YEOHA_CLON",
+          "region": 24227,
+          "x": 5452.2,
+          "y": 518.0,
+          "z": 909.5,
+          "radius": 60
+        }
+      ]
+    },
+    {
+      "min_level": 5,
+      "max_level": 5,
+      "monster": "Decayed Yeoha",
+      "monster_level": 10,
+      "servername": "MOB_CH_YEOHA_CLON",
+      "town": "Jangan",
+      "region": 24996,
+      "x": 5726.0,
+      "y": 1096.9,
+      "z": 423.7,
+      "radius": 59,
+      "name": "ML 005-005 Decayed Yeoha",
+      "alternatives": [
+        {
+          "monster": "Bandit surbodinate",
+          "monster_level": 11,
+          "servername": "MOB_CH_BANDIT_CLON",
+          "region": 23203,
+          "x": 5419.1,
+          "y": -239.5,
+          "z": 1019.1,
+          "radius": 60
+        },
+        {
+          "monster": "Bandit surbodinate",
+          "monster_level": 11,
+          "servername": "MOB_CH_BANDIT_CLON",
+          "region": 24226,
+          "x": 5241.0,
+          "y": 534.0,
+          "z": 841.3,
+          "radius": 60
+        },
+        {
+          "monster": "Bandit surbodinate",
+          "monster_level": 11,
+          "servername": "MOB_CH_BANDIT_CLON",
+          "region": 24738,
+          "x": 5258.4,
+          "y": 862.8,
+          "z": 701.5,
+          "radius": 60
+        }
+      ]
+    },
+    {
+      "min_level": 6,
+      "max_level": 6,
+      "monster": "Bandit surbodinate",
+      "monster_level": 11,
+      "servername": "MOB_CH_BANDIT_CLON",
+      "town": "Jangan",
+      "region": 24738,
+      "x": 5258.4,
+      "y": 862.8,
+      "z": 701.5,
+      "radius": 60,
+      "name": "ML 006-006 Bandit surbodinate",
+      "alternatives": [
+        {
+          "monster": "Bandit surbodinate",
+          "monster_level": 11,
+          "servername": "MOB_CH_BANDIT_CLON",
+          "region": 23203,
+          "x": 5419.1,
+          "y": -239.5,
+          "z": 1019.1,
+          "radius": 60
+        },
+        {
+          "monster": "Bandit surbodinate",
+          "monster_level": 11,
+          "servername": "MOB_CH_BANDIT_CLON",
+          "region": 24226,
+          "x": 5241.0,
+          "y": 534.0,
+          "z": 841.3,
+          "radius": 60
+        },
+        {
+          "monster": "Young Tiger",
+          "monster_level": 13,
+          "servername": "MOB_CH_TIGER_CLON",
+          "region": 23197,
+          "x": 4270.1,
+          "y": -233.5,
+          "z": 737.7,
+          "radius": 60
+        }
+      ]
+    },
+    {
+      "min_level": 7,
+      "max_level": 8,
+      "monster": "Tiger",
+      "monster_level": 14,
+      "servername": "MOB_CH_TIGER",
+      "town": "Jangan",
+      "region": 23708,
+      "x": 4186.9,
+      "y": 3.0,
+      "z": 859.5,
+      "radius": 60,
+      "name": "ML 007-008 Tiger",
+      "alternatives": [
+        {
+          "monster": "Young Tiger",
+          "monster_level": 13,
+          "servername": "MOB_CH_TIGER_CLON",
+          "region": 23197,
+          "x": 4270.1,
+          "y": -233.5,
+          "z": 737.7,
+          "radius": 60
+        },
+        {
+          "monster": "Tiger",
+          "monster_level": 14,
+          "servername": "MOB_CH_TIGER",
+          "region": 23964,
+          "x": 4145.1,
+          "y": 224.2,
+          "z": 592.0,
+          "radius": 60
+        },
+        {
+          "monster": "Bandit archer",
+          "monster_level": 12,
+          "servername": "MOB_CH_BANDITARCHER",
+          "region": 23199,
+          "x": 4612.3,
+          "y": -332.0,
+          "z": 1108.6,
+          "radius": 60
+        }
+      ]
+    },
+    {
+      "min_level": 9,
+      "max_level": 10,
+      "monster": "Bandit bowman",
+      "monster_level": 15,
+      "servername": "MOB_CH_BANDITARCHER_CLON",
+      "town": "Jangan",
+      "region": 23712,
+      "x": 4832.1,
+      "y": 0.5,
+      "z": 1559.1,
+      "radius": 59,
+      "name": "ML 009-010 Bandit bowman",
+      "alternatives": [
+        {
+          "monster": "Tiger",
+          "monster_level": 14,
+          "servername": "MOB_CH_TIGER",
+          "region": 23708,
+          "x": 4186.9,
+          "y": 3.0,
+          "z": 859.5,
+          "radius": 60
+        },
+        {
+          "monster": "Tiger",
+          "monster_level": 14,
+          "servername": "MOB_CH_TIGER",
+          "region": 23964,
+          "x": 4145.1,
+          "y": 224.2,
+          "z": 592.0,
+          "radius": 60
+        }
+      ]
+    },
+    {
+      "min_level": 11,
+      "max_level": 11,
+      "monster": "Bandit",
+      "monster_level": 16,
+      "servername": "MOB_CH_BANDIT",
+      "town": "Jangan",
+      "region": 23712,
+      "x": 4892.3,
+      "y": 16.3,
+      "z": 1551.1,
+      "radius": 60,
+      "name": "ML 011-011 Bandit",
+      "alternatives": [
+        {
+          "monster": "White Tiger",
+          "monster_level": 18,
+          "servername": "MOB_CH_WHITETIGER",
+          "region": 23967,
+          "x": 4794.4,
+          "y": 337.5,
+          "z": 971.4,
+          "radius": 60
+        },
+        {
+          "monster": "White Tiger",
+          "monster_level": 18,
+          "servername": "MOB_CH_WHITETIGER",
+          "region": 23964,
+          "x": 4150.9,
+          "y": 375.3,
+          "z": 316.4,
+          "radius": 60
+        },
+        {
+          "monster": "White Tiger",
+          "monster_level": 18,
+          "servername": "MOB_CH_WHITETIGER",
+          "region": 24734,
+          "x": 4537.3,
+          "y": 801.1,
+          "z": 211.2,
+          "radius": 60
+        }
+      ]
+    },
+    {
+      "min_level": 12,
+      "max_level": 13,
+      "monster": "White Tiger",
+      "monster_level": 18,
+      "servername": "MOB_CH_WHITETIGER",
+      "town": "Jangan",
+      "region": 23967,
+      "x": 4794.4,
+      "y": 337.5,
+      "z": 971.4,
+      "radius": 60,
+      "name": "ML 012-013 White Tiger",
+      "alternatives": [
+        {
+          "monster": "White Tiger",
+          "monster_level": 18,
+          "servername": "MOB_CH_WHITETIGER",
+          "region": 23964,
+          "x": 4150.9,
+          "y": 375.3,
+          "z": 316.4,
+          "radius": 60
+        },
+        {
+          "monster": "White Tiger",
+          "monster_level": 18,
+          "servername": "MOB_CH_WHITETIGER",
+          "region": 24734,
+          "x": 4537.3,
+          "y": 801.1,
+          "z": 211.2,
+          "radius": 60
+        },
+        {
+          "monster": "Black Tiger",
+          "monster_level": 17,
+          "servername": "MOB_CH_WHITETIGER_CLON",
+          "region": 23966,
+          "x": 4498.1,
+          "y": 367.9,
+          "z": 890.9,
+          "radius": 60
+        }
+      ]
+    },
+    {
+      "min_level": 14,
+      "max_level": 14,
+      "monster": "Chakji Worker",
+      "monster_level": 19,
+      "servername": "MOB_CH_CHAKJI_CLON",
+      "town": "Jangan",
+      "region": 25244,
+      "x": 4218.6,
+      "y": 1343.0,
+      "z": 60.4,
+      "radius": 60,
+      "name": "ML 014-014 Chakji Worker",
+      "alternatives": [
+        {
+          "monster": "Chakji",
+          "monster_level": 20,
+          "servername": "MOB_CH_CHAKJI",
+          "region": 25501,
+          "x": 4296.8,
+          "y": 1497.4,
+          "z": 10.8,
+          "radius": 60
+        },
+        {
+          "monster": "Ghost Bug",
+          "monster_level": 21,
+          "servername": "MOB_WC_GHOSTBUG",
+          "region": 25757,
+          "x": 4245.1,
+          "y": 1680.7,
+          "z": -24.8,
+          "radius": 60
+        },
+        {
+          "monster": "Ghost Bug",
+          "monster_level": 21,
+          "servername": "MOB_WC_GHOSTBUG",
+          "region": 26528,
+          "x": 4908.9,
+          "y": 2172.7,
+          "z": -57.6,
+          "radius": 60
+        }
+      ]
+    },
+    {
+      "min_level": 15,
+      "max_level": 15,
+      "monster": "Chakji",
+      "monster_level": 20,
+      "servername": "MOB_CH_CHAKJI",
+      "town": "Jangan",
+      "region": 25501,
+      "x": 4296.8,
+      "y": 1497.4,
+      "z": 10.8,
+      "radius": 60,
+      "name": "ML 015-015 Chakji",
+      "alternatives": [
+        {
+          "monster": "Devil Bug",
+          "monster_level": 22,
+          "servername": "MOB_WC_DEVILBUG",
+          "region": 26266,
+          "x": 3831.3,
+          "y": 1964.1,
+          "z": 2.9,
+          "radius": 60
+        },
+        {
+          "monster": "Ghost Bug",
+          "monster_level": 21,
+          "servername": "MOB_WC_GHOSTBUG",
+          "region": 25757,
+          "x": 4245.1,
+          "y": 1680.7,
+          "z": -24.8,
+          "radius": 60
+        },
+        {
+          "monster": "Ghost Bug",
+          "monster_level": 21,
+          "servername": "MOB_WC_GHOSTBUG",
+          "region": 26528,
+          "x": 4908.9,
+          "y": 2172.7,
+          "z": -57.6,
+          "radius": 60
+        }
+      ]
+    },
+    {
+      "min_level": 16,
+      "max_level": 16,
+      "monster": "Ghost Bug",
+      "monster_level": 21,
+      "servername": "MOB_WC_GHOSTBUG",
+      "town": "Donwhang",
+      "region": 25757,
+      "x": 4245.1,
+      "y": 1680.7,
+      "z": -24.8,
+      "radius": 60,
+      "name": "ML 016-016 Ghost Bug",
+      "alternatives": [
+        {
+          "monster": "Devil Bug",
+          "monster_level": 22,
+          "servername": "MOB_WC_DEVILBUG",
+          "region": 26266,
+          "x": 3831.3,
+          "y": 1964.1,
+          "z": 2.9,
+          "radius": 60
+        },
+        {
+          "monster": "Ghost Bug",
+          "monster_level": 21,
+          "servername": "MOB_WC_GHOSTBUG",
+          "region": 26528,
+          "x": 4908.9,
+          "y": 2172.7,
+          "z": -57.6,
+          "radius": 60
+        },
+        {
+          "monster": "Hyungno Ghost soldier",
+          "monster_level": 23,
+          "servername": "MOB_WC_HYUNGNO",
+          "region": 26015,
+          "x": 4642.5,
+          "y": 1904.3,
+          "z": 76.2,
+          "radius": 60
+        }
+      ]
+    },
+    {
+      "min_level": 17,
+      "max_level": 18,
+      "monster": "Hyungno Ghost soldier",
+      "monster_level": 23,
+      "servername": "MOB_WC_HYUNGNO",
+      "town": "Donwhang",
+      "region": 26015,
+      "x": 4642.5,
+      "y": 1904.3,
+      "z": 76.2,
+      "radius": 60,
+      "name": "ML 017-018 Hyungno Ghost soldier",
+      "alternatives": [
+        {
+          "monster": "Hyungno Ghost",
+          "monster_level": 24,
+          "servername": "MOB_WC_HYUNGNO_CLON",
+          "region": 26270,
+          "x": 4469.6,
+          "y": 2109.0,
+          "z": -156.2,
+          "radius": 60
+        },
+        {
+          "monster": "Devil Bug",
+          "monster_level": 22,
+          "servername": "MOB_WC_DEVILBUG",
+          "region": 26266,
+          "x": 3831.3,
+          "y": 1964.1,
+          "z": 2.9,
+          "radius": 60
+        }
+      ]
+    },
+    {
+      "min_level": 19,
+      "max_level": 19,
+      "monster": "Hyungno Ghost",
+      "monster_level": 24,
+      "servername": "MOB_WC_HYUNGNO_CLON",
+      "town": "Donwhang",
+      "region": 26270,
+      "x": 4469.6,
+      "y": 2109.0,
+      "z": -156.2,
+      "radius": 60,
+      "name": "ML 019-019 Hyungno Ghost",
+      "alternatives": [
+        {
+          "monster": "Demon Horse",
+          "monster_level": 25,
+          "servername": "MOB_WC_DEMONHORSE",
+          "region": 26780,
+          "x": 4065.7,
+          "y": 2327.1,
+          "z": 1.0,
+          "radius": 60
+        },
+        {
+          "monster": "Devil Horse",
+          "monster_level": 26,
+          "servername": "MOB_WC_DEMONHORSE_CLON",
+          "region": 27039,
+          "x": 4683.9,
+          "y": 2641.2,
+          "z": -45.0,
+          "radius": 60
+        },
+        {
+          "monster": "Demon Horse",
+          "monster_level": 25,
+          "servername": "MOB_WC_DEMONHORSE",
+          "region": 27035,
+          "x": 3897.5,
+          "y": 2500.7,
+          "z": -21.9,
+          "radius": 60
+        }
+      ]
+    },
+    {
+      "min_level": 20,
+      "max_level": 20,
+      "monster": "Demon Horse",
+      "monster_level": 25,
+      "servername": "MOB_WC_DEMONHORSE",
+      "town": "Donwhang",
+      "region": 26780,
+      "x": 4065.7,
+      "y": 2327.1,
+      "z": 1.0,
+      "radius": 60,
+      "name": "ML 020-020 Demon Horse",
+      "alternatives": [
+        {
+          "monster": "Devil Horse",
+          "monster_level": 26,
+          "servername": "MOB_WC_DEMONHORSE_CLON",
+          "region": 27039,
+          "x": 4683.9,
+          "y": 2641.2,
+          "z": -45.0,
+          "radius": 60
+        },
+        {
+          "monster": "Demon Horse",
+          "monster_level": 25,
+          "servername": "MOB_WC_DEMONHORSE",
+          "region": 27035,
+          "x": 3897.5,
+          "y": 2500.7,
+          "z": -21.9,
+          "radius": 60
+        },
+        {
+          "monster": "Devil Horse",
+          "monster_level": 26,
+          "servername": "MOB_WC_DEMONHORSE_CLON",
+          "region": 27041,
+          "x": 5009.1,
+          "y": 2597.4,
+          "z": -6.3,
+          "radius": 60
+        }
+      ]
+    },
+    {
+      "min_level": 21,
+      "max_level": 22,
+      "monster": "Meek Earth Ghost",
+      "monster_level": 28,
+      "servername": "MOB_WC_EARTHGHOST_CLON",
+      "town": "Donwhang",
+      "region": 26777,
+      "x": 3582.8,
+      "y": 2475.1,
+      "z": -11.2,
+      "radius": 60,
+      "name": "ML 021-022 Meek Earth Ghost",
+      "alternatives": [
+        {
+          "monster": "Meek Gun Powder",
+          "monster_level": 27,
+          "servername": "MOB_WC_GUNPOWDERGHOST_CLON",
+          "region": 26517,
+          "x": 2744.7,
+          "y": 2282.0,
+          "z": 0.0,
+          "radius": 60
+        },
+        {
+          "monster": "Gun Powder",
+          "monster_level": 28,
+          "servername": "MOB_WC_GUNPOWDERGHOST",
+          "region": 26773,
+          "x": 2792.9,
+          "y": 2473.4,
+          "z": 74.0,
+          "radius": 60
+        },
+        {
+          "monster": "Devil Horse",
+          "monster_level": 26,
+          "servername": "MOB_WC_DEMONHORSE_CLON",
+          "region": 27039,
+          "x": 4683.9,
+          "y": 2641.2,
+          "z": -45.0,
+          "radius": 60
+        }
+      ]
+    },
+    {
+      "min_level": 23,
+      "max_level": 23,
+      "monster": "Gun Powder",
+      "monster_level": 28,
+      "servername": "MOB_WC_GUNPOWDERGHOST",
+      "town": "Donwhang",
+      "region": 26773,
+      "x": 2792.9,
+      "y": 2473.4,
+      "z": 74.0,
+      "radius": 60,
+      "name": "ML 023-023 Gun Powder",
+      "alternatives": [
+        {
+          "monster": "Earth Magician",
+          "monster_level": 30,
+          "servername": "MOB_WC_EARTHKING_CLON",
+          "region": 25753,
+          "x": 3647.9,
+          "y": 1619.0,
+          "z": -14.2,
+          "radius": 60
+        },
+        {
+          "monster": "Earth Magician",
+          "monster_level": 30,
+          "servername": "MOB_WC_EARTHKING_CLON",
+          "region": 24986,
+          "x": 3681.0,
+          "y": 1014.1,
+          "z": 67.1,
+          "radius": 56
+        },
+        {
+          "monster": "Earth Taoist",
+          "monster_level": 30,
+          "servername": "MOB_WC_EARTHKING",
+          "region": 25497,
+          "x": 3476.9,
+          "y": 1488.7,
+          "z": 6.2,
+          "radius": 60
+        }
+      ]
+    },
+    {
+      "min_level": 24,
+      "max_level": 24,
+      "monster": "Hyeongcheon guard",
+      "monster_level": 29,
+      "servername": "MOB_WC_HYEONGCHEON_CLON",
+      "town": "Donwhang",
+      "region": 26005,
+      "x": 2838.5,
+      "y": 1892.0,
+      "z": 0.0,
+      "radius": 60,
+      "name": "ML 024-024 Hyeongcheon guard",
+      "alternatives": [
+        {
+          "monster": "Earth Magician",
+          "monster_level": 30,
+          "servername": "MOB_WC_EARTHKING_CLON",
+          "region": 25753,
+          "x": 3647.9,
+          "y": 1619.0,
+          "z": -14.2,
+          "radius": 60
+        },
+        {
+          "monster": "Earth Magician",
+          "monster_level": 30,
+          "servername": "MOB_WC_EARTHKING_CLON",
+          "region": 24986,
+          "x": 3681.0,
+          "y": 1014.1,
+          "z": 67.1,
+          "radius": 56
+        },
+        {
+          "monster": "Earth Taoist",
+          "monster_level": 30,
+          "servername": "MOB_WC_EARTHKING",
+          "region": 25497,
+          "x": 3476.9,
+          "y": 1488.7,
+          "z": 6.2,
+          "radius": 60
+        }
+      ]
+    },
+    {
+      "min_level": 25,
+      "max_level": 25,
+      "monster": "Hyeongcheon",
+      "monster_level": 30,
+      "servername": "MOB_WC_HYEONGCHEON",
+      "town": "Donwhang",
+      "region": 25238,
+      "x": 2979.0,
+      "y": 1295.1,
+      "z": 68.6,
+      "radius": 60,
+      "name": "ML 025-025 Hyeongcheon",
+      "alternatives": [
+        {
+          "monster": "Earth Magician",
+          "monster_level": 30,
+          "servername": "MOB_WC_EARTHKING_CLON",
+          "region": 25753,
+          "x": 3647.9,
+          "y": 1619.0,
+          "z": -14.2,
+          "radius": 60
+        },
+        {
+          "monster": "Scorpion",
+          "monster_level": 32,
+          "servername": "MOB_OA_SCORPION",
+          "region": 24981,
+          "x": 2789.1,
+          "y": 1031.5,
+          "z": 14.2,
+          "radius": 60
+        },
+        {
+          "monster": "Earth Magician",
+          "monster_level": 30,
+          "servername": "MOB_WC_EARTHKING_CLON",
+          "region": 24986,
+          "x": 3681.0,
+          "y": 1014.1,
+          "z": 67.1,
+          "radius": 56
+        }
+      ]
+    },
+    {
+      "min_level": 26,
+      "max_level": 26,
+      "monster": "Scorpion",
+      "monster_level": 32,
+      "servername": "MOB_OA_SCORPION",
+      "town": "Hotan",
+      "region": 24981,
+      "x": 2789.1,
+      "y": 1031.5,
+      "z": 14.2,
+      "radius": 60,
+      "name": "ML 026-026 Scorpion",
+      "alternatives": [
+        {
+          "monster": "Blood Ong",
+          "monster_level": 33,
+          "servername": "MOB_OA_ONG_CLON",
+          "region": 24464,
+          "x": 1866.9,
+          "y": 728.7,
+          "z": 1006.0,
+          "radius": 60
+        },
+        {
+          "monster": "Blood Devil  Flower",
+          "monster_level": 33,
+          "servername": "MOB_OA_DESERTTRUNKZ_CLON2",
+          "region": 24463,
+          "x": 1677.7,
+          "y": 608.8,
+          "z": 1092.4,
+          "radius": 60
+        },
+        {
+          "monster": "Blood Ong",
+          "monster_level": 33,
+          "servername": "MOB_OA_ONG_CLON",
+          "region": 24722,
+          "x": 2129.2,
+          "y": 799.2,
+          "z": 973.9,
+          "radius": 60
+        }
+      ]
+    },
+    {
+      "min_level": 27,
+      "max_level": 29,
+      "monster": "Ong",
+      "monster_level": 34,
+      "servername": "MOB_OA_ONG",
+      "town": "Hotan",
+      "region": 24722,
+      "x": 2270.0,
+      "y": 856.8,
+      "z": 884.3,
+      "radius": 60,
+      "name": "ML 027-029 Ong",
+      "alternatives": [
+        {
+          "monster": "Blood Death Flower",
+          "monster_level": 34,
+          "servername": "MOB_OA_DESERTTRUNKZ",
+          "region": 24463,
+          "x": 1647.3,
+          "y": 724.7,
+          "z": 1005.0,
+          "radius": 60
+        },
+        {
+          "monster": "Blood Devil  Flower",
+          "monster_level": 33,
+          "servername": "MOB_OA_DESERTTRUNKZ_CLON2",
+          "region": 24465,
+          "x": 1969.1,
+          "y": 733.9,
+          "z": 950.5,
+          "radius": 60
+        },
+        {
+          "monster": "Blood Ong",
+          "monster_level": 33,
+          "servername": "MOB_OA_ONG_CLON",
+          "region": 24722,
+          "x": 2129.2,
+          "y": 799.2,
+          "z": 973.9,
+          "radius": 60
+        }
+      ]
+    },
+    {
+      "min_level": 30,
+      "max_level": 30,
+      "monster": "Black Robber Archer",
+      "monster_level": 36,
+      "servername": "MOB_OA_BLACKROBBERARCHER",
+      "town": "Hotan",
+      "region": 24724,
+      "x": 2617.1,
+      "y": 793.4,
+      "z": 1072.9,
+      "radius": 60,
+      "name": "ML 030-030 Black Robber Archer",
+      "alternatives": [
+        {
+          "monster": "Black Robber Archer",
+          "monster_level": 36,
+          "servername": "MOB_OA_BLACKROBBERARCHER",
+          "region": 24213,
+          "x": 2758.0,
+          "y": 486.8,
+          "z": 1080.5,
+          "radius": 60
+        },
+        {
+          "monster": "Black Robber Archer",
+          "monster_level": 36,
+          "servername": "MOB_OA_BLACKROBBERARCHER",
+          "region": 24211,
+          "x": 2353.3,
+          "y": 490.3,
+          "z": 1100.0,
+          "radius": 60
+        },
+        {
+          "monster": "Red Yeowa",
+          "monster_level": 36,
+          "servername": "MOB_OA_YEOWA",
+          "region": 23447,
+          "x": 3140.0,
+          "y": -8.9,
+          "z": 312.6,
+          "radius": 60
+        }
+      ]
+    },
+    {
+      "min_level": 31,
+      "max_level": 31,
+      "monster": "Black Robber Archer",
+      "monster_level": 36,
+      "servername": "MOB_OA_BLACKROBBERARCHER",
+      "town": "Hotan",
+      "region": 24213,
+      "x": 2758.0,
+      "y": 486.8,
+      "z": 1080.5,
+      "radius": 60,
+      "name": "ML 031-031 Black Robber Archer",
+      "alternatives": [
+        {
+          "monster": "Black Robber Archer",
+          "monster_level": 36,
+          "servername": "MOB_OA_BLACKROBBERARCHER",
+          "region": 24211,
+          "x": 2353.3,
+          "y": 490.3,
+          "z": 1100.0,
+          "radius": 60
+        },
+        {
+          "monster": "Red Yeowa",
+          "monster_level": 36,
+          "servername": "MOB_OA_YEOWA",
+          "region": 23447,
+          "x": 3140.0,
+          "y": -8.9,
+          "z": 312.6,
+          "radius": 60
+        },
+        {
+          "monster": "Black Robber Bowman",
+          "monster_level": 37,
+          "servername": "MOB_OA_BLACKROBBERARCHER_CLON",
+          "region": 23444,
+          "x": 2496.1,
+          "y": -143.5,
+          "z": 250.5,
+          "radius": 60
+        }
+      ]
+    },
+    {
+      "min_level": 32,
+      "max_level": 32,
+      "monster": "Black Robber",
+      "monster_level": 38,
+      "servername": "MOB_OA_BLACKROBBER",
+      "town": "Hotan",
+      "region": 23443,
+      "x": 2414.2,
+      "y": -30.8,
+      "z": 289.8,
+      "radius": 38,
+      "name": "ML 032-032 Black Robber",
+      "alternatives": [
+        {
+          "monster": "Small Red Scorpion",
+          "monster_level": 39,
+          "servername": "MOB_OA_REDSCORPION_CLON",
+          "region": 23184,
+          "x": 1778.0,
+          "y": -196.2,
+          "z": 37.0,
+          "radius": 60
+        },
+        {
+          "monster": "Small Red Scorpion",
+          "monster_level": 39,
+          "servername": "MOB_OA_REDSCORPION_CLON",
+          "region": 23953,
+          "x": 2097.0,
+          "y": 348.8,
+          "z": 1117.9,
+          "radius": 60
+        }
+      ]
+    },
+    {
+      "min_level": 33,
+      "max_level": 34,
+      "monster": "Small Red Scorpion",
+      "monster_level": 39,
+      "servername": "MOB_OA_REDSCORPION_CLON",
+      "town": "Hotan",
+      "region": 23953,
+      "x": 2097.0,
+      "y": 348.8,
+      "z": 1117.9,
+      "radius": 60,
+      "name": "ML 033-034 Small Red Scorpion",
+      "alternatives": [
+        {
+          "monster": "Small Red Scorpion",
+          "monster_level": 39,
+          "servername": "MOB_OA_REDSCORPION_CLON",
+          "region": 23184,
+          "x": 1778.0,
+          "y": -196.2,
+          "z": 37.0,
+          "radius": 60
+        },
+        {
+          "monster": "Red Scorpion",
+          "monster_level": 40,
+          "servername": "MOB_OA_REDSCORPION",
+          "region": 23440,
+          "x": 1850.3,
+          "y": -34.5,
+          "z": 112.8,
+          "radius": 60
+        },
+        {
+          "monster": "Black Robber",
+          "monster_level": 38,
+          "servername": "MOB_OA_BLACKROBBER",
+          "region": 23443,
+          "x": 2414.2,
+          "y": -30.8,
+          "z": 289.8,
+          "radius": 38
+        }
+      ]
+    },
+    {
+      "min_level": 35,
+      "max_level": 35,
+      "monster": "Red Scorpion",
+      "monster_level": 40,
+      "servername": "MOB_OA_REDSCORPION",
+      "town": "Hotan",
+      "region": 23440,
+      "x": 1850.3,
+      "y": -34.5,
+      "z": 112.8,
+      "radius": 60,
+      "name": "ML 035-035 Red Scorpion",
+      "alternatives": [
+        {
+          "monster": "Red-eye Ghost",
+          "monster_level": 41,
+          "servername": "MOB_OA_REDEYEGHOST",
+          "region": 24723,
+          "x": 2479.6,
+          "y": 890.9,
+          "z": -296.4,
+          "radius": 60
+        },
+        {
+          "monster": "Dark-eye Ghost",
+          "monster_level": 42,
+          "servername": "MOB_OA_REDEYEGHOST_CLON",
+          "region": 23952,
+          "x": 1842.4,
+          "y": 334.6,
+          "z": -30.8,
+          "radius": 35
+        }
+      ]
+    },
+    {
+      "min_level": 36,
+      "max_level": 38,
+      "monster": "Maong",
+      "monster_level": 43,
+      "servername": "MOB_KT_ONG_CLON2",
+      "town": "Hotan",
+      "region": 23435,
+      "x": 849.0,
+      "y": -164.2,
+      "z": 21.1,
+      "radius": 60,
+      "name": "ML 036-038 Maong",
+      "alternatives": [
+        {
+          "monster": "Maong",
+          "monster_level": 43,
+          "servername": "MOB_KT_ONG_CLON2",
+          "region": 23433,
+          "x": 545.3,
+          "y": -68.7,
+          "z": 58.8,
+          "radius": 60
+        },
+        {
+          "monster": "Maong",
+          "monster_level": 43,
+          "servername": "MOB_KT_ONG_CLON2",
+          "region": 22919,
+          "x": 182.8,
+          "y": -390.9,
+          "z": 10.7,
+          "radius": 60
+        },
+        {
+          "monster": "Red-eye Ghost",
+          "monster_level": 41,
+          "servername": "MOB_OA_REDEYEGHOST",
+          "region": 24723,
+          "x": 2479.6,
+          "y": 890.9,
+          "z": -296.4,
+          "radius": 60
+        }
+      ]
+    },
+    {
+      "min_level": 39,
+      "max_level": 41,
+      "monster": "Ultra Blood Devil",
+      "monster_level": 46,
+      "servername": "MOB_KT_DESERTTRUNKZ_CLON",
+      "town": "Hotan",
+      "region": 23429,
+      "x": -247.6,
+      "y": -86.8,
+      "z": 304.8,
+      "radius": 60,
+      "name": "ML 039-041 Ultra Blood Devil",
+      "alternatives": [
+        {
+          "monster": "Ultra Blood Devil",
+          "monster_level": 46,
+          "servername": "MOB_KT_DESERTTRUNKZ_CLON",
+          "region": 24712,
+          "x": 309.9,
+          "y": 868.6,
+          "z": 0.7,
+          "radius": 60
+        },
+        {
+          "monster": "Ultra Blood Devil",
+          "monster_level": 46,
+          "servername": "MOB_KT_DESERTTRUNKZ_CLON",
+          "region": 24710,
+          "x": -59.2,
+          "y": 872.1,
+          "z": 58.4,
+          "radius": 60
+        },
+        {
+          "monster": "Bunwang",
+          "monster_level": 45,
+          "servername": "MOB_KT_BUNWANG",
+          "region": 24457,
+          "x": 493.9,
+          "y": 644.5,
+          "z": -36.9,
+          "radius": 60
+        }
+      ]
+    },
+    {
+      "min_level": 42,
+      "max_level": 43,
+      "monster": "Mujigi",
+      "monster_level": 49,
+      "servername": "MOB_KT_MUJIGI",
+      "town": "Hotan",
+      "region": 23173,
+      "x": -228.1,
+      "y": -234.2,
+      "z": 288.0,
+      "radius": 60,
+      "name": "ML 042-043 Mujigi",
+      "alternatives": [
+        {
+          "monster": "White Spider",
+          "monster_level": 48,
+          "servername": "MOB_KT_WHITESPIDER",
+          "region": 24968,
+          "x": 297.2,
+          "y": 1041.2,
+          "z": 100.0,
+          "radius": 60
+        },
+        {
+          "monster": "Golden Spider",
+          "monster_level": 47,
+          "servername": "MOB_KT_WHITESPIDER_CLON",
+          "region": 24966,
+          "x": -46.0,
+          "y": 1034.7,
+          "z": -0.2,
+          "radius": 60
+        }
+      ]
+    },
+    {
+      "min_level": 44,
+      "max_level": 46,
+      "monster": "Ishade",
+      "monster_level": 51,
+      "servername": "MOB_KK_ISHADE",
+      "town": "Hotan",
+      "region": 22915,
+      "x": -715.2,
+      "y": -509.5,
+      "z": 1384.8,
+      "radius": 60,
+      "name": "ML 044-046 Ishade",
+      "alternatives": [
+        {
+          "monster": "Ishade",
+          "monster_level": 51,
+          "servername": "MOB_KK_ISHADE",
+          "region": 22146,
+          "x": -852.7,
+          "y": -1012.5,
+          "z": 1393.6,
+          "radius": 60
+        },
+        {
+          "monster": "Ishade",
+          "monster_level": 51,
+          "servername": "MOB_KK_ISHADE",
+          "region": 22403,
+          "x": -678.1,
+          "y": -910.4,
+          "z": 1474.7,
+          "radius": 60
+        },
+        {
+          "monster": "Ujigi",
+          "monster_level": 50,
+          "servername": "MOB_KT_MUJIGI_CLON",
+          "region": 24451,
+          "x": -601.7,
+          "y": 583.4,
+          "z": 1049.4,
+          "radius": 60
+        }
+      ]
+    },
+    {
+      "min_level": 47,
+      "max_level": 47,
+      "monster": "Hashade",
+      "monster_level": 52,
+      "servername": "MOB_KK_ISHADE_CLON",
+      "town": "Hotan",
+      "region": 22658,
+      "x": -777.9,
+      "y": -590.0,
+      "z": 1515.1,
+      "radius": 60,
+      "name": "ML 047-047 Hashade",
+      "alternatives": [
+        {
+          "monster": "Hashade",
+          "monster_level": 52,
+          "servername": "MOB_KK_ISHADE_CLON",
+          "region": 21890,
+          "x": -846.3,
+          "y": -1166.6,
+          "z": 1353.3,
+          "radius": 60
+        },
+        {
+          "monster": "Hashade",
+          "monster_level": 52,
+          "servername": "MOB_KK_ISHADE_CLON",
+          "region": 23169,
+          "x": -969.7,
+          "y": -251.4,
+          "z": 1201.5,
+          "radius": 60
+        },
+        {
+          "monster": "Penon Fighter",
+          "monster_level": 54,
+          "servername": "MOB_KK_PENON_F",
+          "region": 22912,
+          "x": -1178.4,
+          "y": -396.2,
+          "z": 491.3,
+          "radius": 60
+        }
+      ]
+    },
+    {
+      "min_level": 48,
+      "max_level": 49,
+      "monster": "Penon Fighter",
+      "monster_level": 54,
+      "servername": "MOB_KK_PENON_F",
+      "town": "Hotan",
+      "region": 22912,
+      "x": -1178.4,
+      "y": -396.2,
+      "z": 491.3,
+      "radius": 60,
+      "name": "ML 048-049 Penon Fighter",
+      "alternatives": [
+        {
+          "monster": "Penon Warrior",
+          "monster_level": 55,
+          "servername": "MOB_KK_PENON_W",
+          "region": 22911,
+          "x": -1502.6,
+          "y": -522.8,
+          "z": 606.7,
+          "radius": 60
+        },
+        {
+          "monster": "Penon Warrior",
+          "monster_level": 55,
+          "servername": "MOB_KK_PENON_W",
+          "region": 23165,
+          "x": -1791.8,
+          "y": -358.1,
+          "z": 353.4,
+          "radius": 60
+        },
+        {
+          "monster": "Penon Warrior",
+          "monster_level": 55,
+          "servername": "MOB_KK_PENON_W",
+          "region": 22654,
+          "x": -1680.4,
+          "y": -618.4,
+          "z": 729.9,
+          "radius": 60
+        }
+      ]
+    },
+    {
+      "min_level": 50,
+      "max_level": 51,
+      "monster": "Planar",
+      "monster_level": 56,
+      "servername": "MOB_KK_PLANAR",
+      "town": "Hotan",
+      "region": 22657,
+      "x": -1144.1,
+      "y": -627.1,
+      "z": 448.5,
+      "radius": 60,
+      "name": "ML 050-051 Planar",
+      "alternatives": [
+        {
+          "monster": "Penon Warrior",
+          "monster_level": 55,
+          "servername": "MOB_KK_PENON_W",
+          "region": 22911,
+          "x": -1502.6,
+          "y": -522.8,
+          "z": 606.7,
+          "radius": 60
+        },
+        {
+          "monster": "Sona",
+          "monster_level": 57,
+          "servername": "MOB_KK_PLANAR_CLON",
+          "region": 23421,
+          "x": -1729.5,
+          "y": -71.7,
+          "z": 372.4,
+          "radius": 60
+        },
+        {
+          "monster": "Planar",
+          "monster_level": 56,
+          "servername": "MOB_KK_PLANAR",
+          "region": 22399,
+          "x": -1354.7,
+          "y": -773.2,
+          "z": 573.2,
+          "radius": 60
+        }
+      ]
+    },
+    {
+      "min_level": 52,
+      "max_level": 54,
+      "monster": "Yeti",
+      "monster_level": 59,
+      "servername": "MOB_KK_YETI",
+      "town": "Hotan",
+      "region": 22142,
+      "x": -1605.9,
+      "y": -1035.6,
+      "z": 1411.0,
+      "radius": 60,
+      "name": "ML 052-054 Yeti",
+      "alternatives": [
+        {
+          "monster": "Sona",
+          "monster_level": 57,
+          "servername": "MOB_KK_PLANAR_CLON",
+          "region": 23421,
+          "x": -1729.5,
+          "y": -71.7,
+          "z": 372.4,
+          "radius": 60
+        },
+        {
+          "monster": "Sona",
+          "monster_level": 57,
+          "servername": "MOB_KK_PLANAR_CLON",
+          "region": 23679,
+          "x": -1452.6,
+          "y": 5.8,
+          "z": 315.3,
+          "radius": 60
+        },
+        {
+          "monster": "Yeti",
+          "monster_level": 59,
+          "servername": "MOB_KK_YETI",
+          "region": 21885,
+          "x": -1825.9,
+          "y": -1193.4,
+          "z": 1871.7,
+          "radius": 60
+        }
+      ]
+    },
+    {
+      "min_level": 55,
+      "max_level": 56,
+      "monster": "Shakram",
+      "monster_level": 61,
+      "servername": "MOB_TK_EDIMMU_CLON",
+      "town": "Hotan",
+      "region": 25731,
+      "x": -607.2,
+      "y": 1583.1,
+      "z": -54.8,
+      "radius": 55,
+      "name": "ML 055-056 Shakram",
+      "alternatives": [
+        {
+          "monster": "Shakram",
+          "monster_level": 61,
+          "servername": "MOB_TK_EDIMMU_CLON",
+          "region": 25734,
+          "x": -79.5,
+          "y": 1544.9,
+          "z": -56.7,
+          "radius": 60
+        },
+        {
+          "monster": "Shakram",
+          "monster_level": 61,
+          "servername": "MOB_TK_EDIMMU_CLON",
+          "region": 25985,
+          "x": -972.0,
+          "y": 1765.3,
+          "z": -26.1,
+          "radius": 60
+        },
+        {
+          "monster": "Evil-Yeti",
+          "monster_level": 60,
+          "servername": "MOB_KK_YETI_CLON",
+          "region": 22138,
+          "x": -2351.7,
+          "y": -1079.7,
+          "z": 1920.5,
+          "radius": 60
+        }
+      ]
+    },
+    {
+      "min_level": 57,
+      "max_level": 58,
+      "monster": "Edimmu",
+      "monster_level": 63,
+      "servername": "MOB_TK_EDIMMU",
+      "town": "Hotan",
+      "region": 25476,
+      "x": -526.3,
+      "y": 1412.6,
+      "z": -100.3,
+      "radius": 60,
+      "name": "ML 057-058 Edimmu",
+      "alternatives": [
+        {
+          "monster": "Edimmu",
+          "monster_level": 63,
+          "servername": "MOB_TK_EDIMMU",
+          "region": 25475,
+          "x": -743.6,
+          "y": 1413.3,
+          "z": 20.5,
+          "radius": 60
+        },
+        {
+          "monster": "Edimmu",
+          "monster_level": 63,
+          "servername": "MOB_TK_EDIMMU",
+          "region": 25991,
+          "x": 11.4,
+          "y": 1741.0,
+          "z": 2.3,
+          "radius": 60
+        }
+      ]
+    },
+    {
+      "min_level": 59,
+      "max_level": 60,
+      "monster": "Dark Karra",
+      "monster_level": 65,
+      "servername": "MOB_TK_DEATHKARA_CLON",
+      "town": "Hotan",
+      "region": 26246,
+      "x": -147.5,
+      "y": 1947.5,
+      "z": -540.3,
+      "radius": 60,
+      "name": "ML 059-060 Dark Karra",
+      "alternatives": [
+        {
+          "monster": "Dark Karra",
+          "monster_level": 65,
+          "servername": "MOB_TK_DEATHKARA_CLON",
+          "region": 25728,
+          "x": -1236.7,
+          "y": 1670.6,
+          "z": -480.8,
+          "radius": 60
+        },
+        {
+          "monster": "Dark Karra",
+          "monster_level": 65,
+          "servername": "MOB_TK_DEATHKARA_CLON",
+          "region": 26503,
+          "x": 163.7,
+          "y": 2127.6,
+          "z": -444.6,
+          "radius": 60
+        }
+      ]
+    },
+    {
+      "min_level": 61,
+      "max_level": 62,
+      "monster": "Death Karra",
+      "monster_level": 67,
+      "servername": "MOB_TK_DEATHKARA",
+      "town": "Hotan",
+      "region": 26246,
+      "x": -151.0,
+      "y": 1945.1,
+      "z": -540.4,
+      "radius": 60,
+      "name": "ML 061-062 Death Karra",
+      "alternatives": [
+        {
+          "monster": "Death Karra",
+          "monster_level": 67,
+          "servername": "MOB_TK_DEATHKARA",
+          "region": 25728,
+          "x": -1278.1,
+          "y": 1622.5,
+          "z": -491.6,
+          "radius": 60
+        },
+        {
+          "monster": "Death Karra",
+          "monster_level": 67,
+          "servername": "MOB_TK_DEATHKARA",
+          "region": 26503,
+          "x": 163.8,
+          "y": 2125.0,
+          "z": -436.8,
+          "radius": 60
+        },
+        {
+          "monster": "Demon Eye",
+          "monster_level": 68,
+          "servername": "MOB_TK_DEVILEYE_CLON",
+          "region": 25214,
+          "x": -1613.3,
+          "y": 1262.6,
+          "z": 39.0,
+          "radius": 52
+        }
+      ]
+    },
+    {
+      "min_level": 63,
+      "max_level": 63,
+      "monster": "Devil Eye",
+      "monster_level": 70,
+      "servername": "MOB_TK_DEVILEYE",
+      "town": "Hotan",
+      "region": 25214,
+      "x": -1613.0,
+      "y": 1264.9,
+      "z": 31.3,
+      "radius": 51,
+      "name": "ML 063-063 Devil Eye",
+      "alternatives": [
+        {
+          "monster": "Feather Cloak",
+          "monster_level": 70,
+          "servername": "MOB_RM_FEATHERMASK_CLON",
+          "region": 24170,
+          "x": -5525.3,
+          "y": 571.4,
+          "z": 3914.7,
+          "radius": 60
+        },
+        {
+          "monster": "Feather Cloak",
+          "monster_level": 70,
+          "servername": "MOB_RM_FEATHERMASK_CLON",
+          "region": 23401,
+          "x": -5626.9,
+          "y": -101.6,
+          "z": 2126.6,
+          "radius": 60
+        },
+        {
+          "monster": "Feather Cloak",
+          "monster_level": 70,
+          "servername": "MOB_RM_FEATHERMASK_CLON",
+          "region": 21875,
+          "x": -3724.7,
+          "y": -1177.7,
+          "z": 3494.1,
+          "radius": 60
+        }
+      ]
+    },
+    {
+      "min_level": 64,
+      "max_level": 66,
+      "monster": "Niya Soldier",
+      "monster_level": 71,
+      "servername": "MOB_TK_BONESOLDIER_CLON",
+      "town": "Hotan",
+      "region": 26758,
+      "x": -18.7,
+      "y": 2371.7,
+      "z": -74.2,
+      "radius": 60,
+      "name": "ML 064-066 Niya Soldier",
+      "alternatives": [
+        {
+          "monster": "Niya Soldier",
+          "monster_level": 71,
+          "servername": "MOB_TK_BONESOLDIER_CLON",
+          "region": 26760,
+          "x": 250.0,
+          "y": 2327.5,
+          "z": -97.3,
+          "radius": 60
+        },
+        {
+          "monster": "Feather Cloak",
+          "monster_level": 70,
+          "servername": "MOB_RM_FEATHERMASK_CLON",
+          "region": 24170,
+          "x": -5525.3,
+          "y": 571.4,
+          "z": 3914.7,
+          "radius": 60
+        },
+        {
+          "monster": "Niya Soldier",
+          "monster_level": 71,
+          "servername": "MOB_TK_BONESOLDIER_CLON",
+          "region": 26761,
+          "x": 430.9,
+          "y": 2438.1,
+          "z": -100.2,
+          "radius": 60
+        }
+      ]
+    },
+    {
+      "min_level": 67,
+      "max_level": 68,
+      "monster": "Niya Guard",
+      "monster_level": 73,
+      "servername": "MOB_TK_BONESOLDIER",
+      "town": "Hotan",
+      "region": 27015,
+      "x": 145.7,
+      "y": 2616.3,
+      "z": -33.6,
+      "radius": 60,
+      "name": "ML 067-068 Niya Guard",
+      "alternatives": [
+        {
+          "monster": "Niya Guard",
+          "monster_level": 73,
+          "servername": "MOB_TK_BONESOLDIER",
+          "region": 27017,
+          "x": 402.5,
+          "y": 2582.1,
+          "z": -87.2,
+          "radius": 60
+        },
+        {
+          "monster": "Black Eagle",
+          "monster_level": 72,
+          "servername": "MOB_RM_ROCKY_CLON",
+          "region": 24691,
+          "x": -3728.5,
+          "y": 934.1,
+          "z": 2245.3,
+          "radius": 60
+        },
+        {
+          "monster": "Black Eagle",
+          "monster_level": 72,
+          "servername": "MOB_RM_ROCKY_CLON",
+          "region": 24945,
+          "x": -4046.3,
+          "y": 1147.2,
+          "z": 2461.8,
+          "radius": 60
+        }
+      ]
+    },
+    {
+      "min_level": 69,
+      "max_level": 69,
+      "monster": "Niya Hunter",
+      "monster_level": 76,
+      "servername": "MOB_TK_BONEHUNTER",
+      "town": "Hotan",
+      "region": 26755,
+      "x": -683.5,
+      "y": 2441.1,
+      "z": -4.5,
+      "radius": 60,
+      "name": "ML 069-069 Niya Hunter",
+      "alternatives": [
+        {
+          "monster": "Niya Hunter",
+          "monster_level": 76,
+          "servername": "MOB_TK_BONEHUNTER",
+          "region": 27010,
+          "x": -901.3,
+          "y": 2553.1,
+          "z": 303.6,
+          "radius": 60
+        },
+        {
+          "monster": "Shaur",
+          "monster_level": 75,
+          "servername": "MOB_RM_GOAT_CLON",
+          "region": 23668,
+          "x": -3540.1,
+          "y": 94.6,
+          "z": 2130.7,
+          "radius": 60
+        },
+        {
+          "monster": "Shaur",
+          "monster_level": 75,
+          "servername": "MOB_RM_GOAT_CLON",
+          "region": 23660,
+          "x": -5139.5,
+          "y": 66.5,
+          "z": 2083.1,
+          "radius": 60
+        }
+      ]
+    },
+    {
+      "min_level": 70,
+      "max_level": 70,
+      "monster": "Niya Hunter",
+      "monster_level": 76,
+      "servername": "MOB_TK_BONEHUNTER",
+      "town": "Hotan",
+      "region": 27010,
+      "x": -901.3,
+      "y": 2553.1,
+      "z": 303.6,
+      "radius": 60,
+      "name": "ML 070-070 Niya Hunter",
+      "alternatives": [
+        {
+          "monster": "Shaur",
+          "monster_level": 75,
+          "servername": "MOB_RM_GOAT_CLON",
+          "region": 23668,
+          "x": -3540.1,
+          "y": 94.6,
+          "z": 2130.7,
+          "radius": 60
+        },
+        {
+          "monster": "Shaur",
+          "monster_level": 75,
+          "servername": "MOB_RM_GOAT_CLON",
+          "region": 23660,
+          "x": -5139.5,
+          "y": 66.5,
+          "z": 2083.1,
+          "radius": 60
+        },
+        {
+          "monster": "Shaur",
+          "monster_level": 75,
+          "servername": "MOB_RM_GOAT_CLON",
+          "region": 24173,
+          "x": -4809.2,
+          "y": 558.8,
+          "z": 2094.2,
+          "radius": 60
+        }
+      ]
+    },
+    {
+      "min_level": 71,
+      "max_level": 72,
+      "monster": "Niya Shaman",
+      "monster_level": 78,
+      "servername": "MOB_TK_BONEMAGE",
+      "town": "Hotan",
+      "region": 26496,
+      "x": -1207.8,
+      "y": 2134.0,
+      "z": 93.1,
+      "radius": 60,
+      "name": "ML 071-072 Niya Shaman",
+      "alternatives": [
+        {
+          "monster": "Wing Tribe",
+          "monster_level": 78,
+          "servername": "MOB_RM_WINGTRIBE_CLON",
+          "region": 22378,
+          "x": -5429.3,
+          "y": -783.4,
+          "z": 3961.3,
+          "radius": 60
+        },
+        {
+          "monster": "Niya Mage",
+          "monster_level": 77,
+          "servername": "MOB_TK_BONEMAGE_CLON",
+          "region": 26238,
+          "x": -1675.6,
+          "y": 2015.9,
+          "z": 152.9,
+          "radius": 60
+        },
+        {
+          "monster": "Wing Tribe",
+          "monster_level": 78,
+          "servername": "MOB_RM_WINGTRIBE_CLON",
+          "region": 21868,
+          "x": -5134.6,
+          "y": -1165.5,
+          "z": 2917.5,
+          "radius": 60
+        }
+      ]
+    },
+    {
+      "min_level": 73,
+      "max_level": 75,
+      "monster": "Niya General",
+      "monster_level": 80,
+      "servername": "MOB_TK_BONEGENERAL",
+      "town": "Hotan",
+      "region": 26495,
+      "x": -1487.9,
+      "y": 2144.1,
+      "z": 147.5,
+      "radius": 60,
+      "name": "ML 073-075 Niya General",
+      "alternatives": [
+        {
+          "monster": "Wing Tribe",
+          "monster_level": 78,
+          "servername": "MOB_RM_WINGTRIBE_CLON",
+          "region": 22378,
+          "x": -5429.3,
+          "y": -783.4,
+          "z": 3961.3,
+          "radius": 60
+        },
+        {
+          "monster": "Wing Tribe",
+          "monster_level": 78,
+          "servername": "MOB_RM_WINGTRIBE_CLON",
+          "region": 21868,
+          "x": -5134.6,
+          "y": -1165.5,
+          "z": 2917.5,
+          "radius": 60
+        },
+        {
+          "monster": "Wing Tribe Guardian",
+          "monster_level": 80,
+          "servername": "MOB_RM_WINGTRIBE",
+          "region": 22896,
+          "x": -4289.0,
+          "y": -569.2,
+          "z": 3602.9,
+          "radius": 60
+        }
+      ]
+    },
+    {
+      "min_level": 76,
+      "max_level": 78,
+      "monster": "Antelope",
+      "monster_level": 83,
+      "servername": "MOB_RM_ANTELOPE",
+      "town": "Hotan",
+      "region": 24687,
+      "x": -4552.5,
+      "y": 939.2,
+      "z": 2380.3,
+      "radius": 60,
+      "name": "ML 076-078 Antelope",
+      "alternatives": [
+        {
+          "monster": "Antelope",
+          "monster_level": 83,
+          "servername": "MOB_RM_ANTELOPE",
+          "region": 21872,
+          "x": -4326.2,
+          "y": -1163.0,
+          "z": 2209.6,
+          "radius": 60
+        },
+        {
+          "monster": "Antinoke",
+          "monster_level": 82,
+          "servername": "MOB_RM_ANTELOPE_CLON",
+          "region": 21617,
+          "x": -4077.5,
+          "y": -1398.0,
+          "z": 2096.8,
+          "radius": 60
+        }
+      ]
+    },
+    {
+      "min_level": 79,
+      "max_level": 80,
+      "monster": "Wing Tribe Chaser",
+      "monster_level": 85,
+      "servername": "MOB_RM_WINGTRIBESPEAR_CLON",
+      "town": "Hotan",
+      "region": 24171,
+      "x": -5358.9,
+      "y": 548.4,
+      "z": 5399.2,
+      "radius": 60,
+      "name": "ML 079-080 Wing Tribe Chaser",
+      "alternatives": [
+        {
+          "monster": "Wing Tribe Chaser",
+          "monster_level": 85,
+          "servername": "MOB_RM_WINGTRIBESPEAR_CLON",
+          "region": 22387,
+          "x": -3719.4,
+          "y": -864.2,
+          "z": 3896.7,
+          "radius": 60
+        },
+        {
+          "monster": "Wing Tribe Chaser",
+          "monster_level": 85,
+          "servername": "MOB_RM_WINGTRIBESPEAR_CLON",
+          "region": 22388,
+          "x": -3524.3,
+          "y": -780.6,
+          "z": 3401.1,
+          "radius": 60
+        }
+      ]
+    },
+    {
+      "min_level": 81,
+      "max_level": 83,
+      "monster": "Rocky",
+      "monster_level": 88,
+      "servername": "MOB_RM_ROCKY",
+      "town": "Hotan",
+      "region": 22068,
+      "x": -15760.3,
+      "y": -984.2,
+      "z": 747.9,
+      "radius": 60,
+      "name": "ML 081-083 Rocky",
+      "alternatives": [
+        {
+          "monster": "Rocky",
+          "monster_level": 88,
+          "servername": "MOB_RM_ROCKY",
+          "region": 22579,
+          "x": -16108.6,
+          "y": -699.0,
+          "z": 727.9,
+          "radius": 60
+        },
+        {
+          "monster": "Rocky",
+          "monster_level": 88,
+          "servername": "MOB_RM_ROCKY",
+          "region": 23090,
+          "x": -16241.9,
+          "y": -260.4,
+          "z": 867.7,
+          "radius": 60
+        },
+        {
+          "monster": "Wing Tribe Attacker",
+          "monster_level": 87,
+          "servername": "MOB_RM_WINGTRIBESPEAR",
+          "region": 24171,
+          "x": -5289.6,
+          "y": 562.9,
+          "z": 5595.8,
+          "radius": 60
+        }
+      ]
+    },
+    {
+      "min_level": 84,
+      "max_level": 101,
+      "monster": "Guardian Rocky",
+      "monster_level": 90,
+      "servername": "MOB_RM_ROCKY_CLON2",
+      "town": "Hotan",
+      "region": 22835,
+      "x": -16008.6,
+      "y": -389.9,
+      "z": 894.3,
+      "radius": 60,
+      "name": "ML 084-101 Guardian Rocky",
+      "alternatives": [
+        {
+          "monster": "Guardian Rocky",
+          "monster_level": 90,
+          "servername": "MOB_RM_ROCKY_CLON2",
+          "region": 23349,
+          "x": -15694.7,
+          "y": -111.3,
+          "z": 911.1,
+          "radius": 60
+        },
+        {
+          "monster": "Guardian Rocky",
+          "monster_level": 90,
+          "servername": "MOB_RM_ROCKY_CLON2",
+          "region": 23091,
+          "x": -16076.3,
+          "y": -207.5,
+          "z": 1083.7,
+          "radius": 53
+        }
+      ]
+    }
+  ]
+}
