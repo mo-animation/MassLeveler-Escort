@@ -624,6 +624,28 @@ def show_windows(pid, show):
     return len(wins)
 
 
+def hide_status_widgets():
+    """the Elysian client opens a small LV / HP / MP / EXP window (class SRO_StatusWidget) of its own beside
+    the game; hide every visible one. Returns how many were hidden."""
+    if sys.platform != 'win32':
+        return 0
+    user32 = ctypes.windll.user32
+    found = []
+    proto = ctypes.WINFUNCTYPE(ctypes.c_bool, ctypes.c_void_p, ctypes.c_void_p)
+
+    def cb(hwnd, _):
+        cls = ctypes.create_unicode_buffer(64)
+        user32.GetClassNameW(hwnd, cls, 64)
+        if cls.value == 'SRO_StatusWidget' and user32.IsWindowVisible(hwnd):
+            found.append(hwnd)
+        return True
+
+    user32.EnumWindows(proto(cb), 0)
+    for hwnd in found:
+        user32.ShowWindow(hwnd, 0)                      # SW_HIDE
+    return len(found)
+
+
 def load_groups(s, progress, skip=None):
     """skip = {'groups': [gid], 'characters': [name]} switched off in the dashboard"""
     skip = skip or {}
@@ -1606,6 +1628,7 @@ class Manager:
             self.stop_event.wait(3.0)
 
     def tick(self):
+        hide_status_widgets()
         with self.lock:
             now = time.time()
             for g in self._active():
