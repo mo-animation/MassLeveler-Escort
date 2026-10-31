@@ -19,15 +19,15 @@ MassLeveler.bat ──► manager (desktop dashboard)
 
 | Part | Job |
 |---|---|
-| `manager/mass_leveler.py` | Dashboard. Splits accounts into groups and launches phBot with auto login. Gives each group one connection (your IP or a proxy). Restarts crashed or frozen bots, closes a finished group and starts the next one. **Settings...** edits the server, group size, composition and window options. Show/hide buttons for the bot and the game client. |
+| `manager/mass_leveler.py` | Dashboard. Splits accounts into groups and launches phBot with auto login. Gives each group one connection (your IP or a proxy). Restarts crashed or frozen bots, closes a finished group and starts the next one. Top bar: Start, Stop all, Finish all, Restart bots, **Settings** (pages General / Groups / Escort / Builds: phBot path, files, group options, the 80+ / 95+ spots, compositions) and Update. Right-click a group or character for its actions and the phBot menu (show / hide bot and client...). Rows: escort yellow, dead or error red, finished green, skipped grey. |
 | `plugin/MassLeveler.py` | Runs inside phBot. Registers the secondary passcode on new accounts, creates the character with its build's model and items. Collects the item-mall storage. Picks the training area from the **group's lowest level**. Loads the skill profile of its 10-level bracket, uses berserk as soon as it's full, finishes at the final level and reports status. Stays idle in bots the manager didn't start. |
-| `data/builds.json` | **The builds** (CH nuker, EU wizard / cleric / warrior / bard / warlock), each made from one of your own level-110 profiles. Final skill lists, party buffs, creation items. Edit it, then press **Rebuild skill plans**. |
+| `data/builds.json` | **The builds** (CH nuker, EU wizard / cleric / warrior / bard / warlock), each made from one of your own level-110 profiles. Final skill lists, party buffs, creation items. Edit it, then press **Rebuild skill plans** (Settings → Builds). |
 | `data/builds/<build>.json` + `templates/<build>.json` | Made by `tools/make_builds.py`: the 10 brackets of every build and its profile template. Don't edit them by hand. |
 | `settings.json` → `escort_solo_spot` / `escort_stages` | Escort version: levels 1–4 alone at the solo spot (Jangan gate, the profiles' only training area), then the escort's 4 stages. There is no level plan any more. |
 
 ## Builds, groups and the 10 skill profiles
 
-- **Composition** (Settings...): the build of every slot of a group, slot 1 is the leader. "CH nukers" = 8 nukers. "EU party" = warrior (leader, tank), cleric, bard, 3 wizards, warlock, cleric. Make your own with **New**. A `build` column in `accounts.csv` overrides the slot for one account.
+- **Composition** (Settings → Builds): the build of every slot of a group, slot 1 is the leader. "CH nukers" = 8 nukers. "EU party" = warrior (leader, tank), cleric, bard, 3 wizards, warlock, cleric. Make your own with **New**. A `build` column in `accounts.csv` overrides the slot for one account.
 - **10 profiles per character**: `Lv001-010` … `Lv091-100`, visible in phBot's profile list. Each holds the skills of its build for those levels, in casting order. Every final skill is replaced by the best rank of its line unlocked by the bracket's last level:
   - CH: Flame Wave Arrow → Burning → HellFire, Wolf's → Tiger's → Horse's → Crane's Thunderbolt.
   - EU: Fire Bolt → Meteor, Reverse → Grad Reverse → Reverse Immolation.

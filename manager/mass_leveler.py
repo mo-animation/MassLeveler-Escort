@@ -17,12 +17,9 @@ from tkinter import filedialog, messagebox, simpledialog, ttk
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import ml_core  # noqa: E402
 
-COLUMNS = ('role', 'build', 'level', 'exp', 'hp', 'zone', 'area', 'state', 'party', 'skills', 'restarts', 'updated')
-HEADINGS = {'role': 'Role', 'build': 'Build', 'level': 'Lv', 'exp': 'EXP %', 'hp': 'HP', 'zone': 'Zone',
-            'area': 'Training area', 'state': 'State', 'party': 'Party', 'skills': 'Attack skills / zerk',
-            'restarts': 'Restarts', 'updated': 'Updated'}
-WIDTHS = {'role': 60, 'build': 85, 'level': 40, 'exp': 60, 'hp': 90, 'zone': 120, 'area': 200, 'state': 220,
-          'party': 45, 'skills': 110, 'restarts': 60, 'updated': 70}
+COLUMNS = ('level', 'exp', 'zone', 'area', 'state')
+HEADINGS = {'level': 'Lv', 'exp': 'EXP %', 'zone': 'Zone', 'area': 'Training area', 'state': 'State'}
+WIDTHS = {'level': 40, 'exp': 60, 'zone': 130, 'area': 230, 'state': 380}     # State takes the rest of the width
 MEMBER_MODES = ('client', 'clientless', 'client_then_clientless')
 RUNNING = ('launching', 'running')
 STATS_COLUMNS = (('level', 'Lv', 40), ('exp_pct', 'EXP %', 60), ('exp_hour', 'EXP %/h', 70),
@@ -168,7 +165,7 @@ class StatsWindow:
         self.top.after(2000, self.update)
 DARK = {'bg': '#1e1e1e', 'panel': '#252526', 'field': '#2d2d30', 'line': '#3f3f46', 'fg': '#f0f0f0',
         'dim': '#8a8a8a', 'accent': '#0e639c', 'select': '#094771', 'hover': '#3e3e42', 'link': '#64b5f6',
-        'done': '#81c784', 'bad': '#ef9a9a'}
+        'done': '#81c784', 'bad': '#f14c4c', 'escort': '#f2cc60'}
 
 
 def apply_dark(root):
@@ -180,9 +177,11 @@ def apply_dark(root):
                  darkcolor=c['bg'], lightcolor=c['bg'], troughcolor=c['panel'], selectbackground=c['select'],
                  selectforeground='#ffffff', insertcolor=c['fg'], arrowcolor=c['fg'], focuscolor=c['accent'])
     st.map('.', foreground=[('disabled', c['dim'])])
-    st.configure('TButton', background=c['field'], padding=(8, 3))
+    st.configure('TButton', background=c['field'], padding=(10, 2))
     st.map('TButton', background=[('pressed', c['accent']), ('active', c['hover'])])
-    st.configure('Treeview', background=c['panel'], fieldbackground=c['panel'], foreground=c['fg'], rowheight=22)
+    st.configure('Accent.TButton', background=c['accent'], bordercolor=c['accent'], foreground='#ffffff')
+    st.map('Accent.TButton', background=[('pressed', c['select']), ('active', '#1177bb')])
+    st.configure('Treeview', background=c['panel'], fieldbackground=c['panel'], foreground=c['fg'], rowheight=20)
     st.map('Treeview', background=[('selected', c['select'])], foreground=[('selected', '#ffffff')])
     st.configure('Treeview.Heading', background=c['field'], foreground=c['fg'], relief='flat')
     st.map('Treeview.Heading', background=[('active', c['hover'])])
@@ -190,13 +189,24 @@ def apply_dark(root):
         st.configure(w, fieldbackground=c['field'], background=c['field'], foreground=c['fg'])
         st.map(w, fieldbackground=[('readonly', c['field'])], foreground=[('readonly', c['fg'])],
                background=[('active', c['hover'])])
-    st.configure('TCheckbutton', indicatorbackground=c['field'], indicatorforeground='#ffffff')
-    st.map('TCheckbutton', background=[('active', c['bg'])], indicatorbackground=[('selected', c['accent'])])
+    st.map('TCheckbutton', background=[('active', c['bg'])])
+    # check boxes drawn like the tick boxes of the group list
+    root.box_images = box_image(False), box_image(True)     # a Tk image lives as long as a Python reference
+    st.element_create('Box.indicator', 'image', root.box_images[0], ('selected', root.box_images[1]),
+                      padding=(0, 0, 6, 0))
+    st.layout('TCheckbutton', [('Checkbutton.padding', {'sticky': 'nswe', 'children': [
+        ('Box.indicator', {'side': 'left', 'sticky': ''}),
+        ('Checkbutton.focus', {'side': 'left', 'sticky': 'w', 'children': [('Checkbutton.label', {'sticky': 'nswe'})]})]})])
     for w in ('Vertical.TScrollbar', 'Horizontal.TScrollbar'):
         st.configure(w, background=c['field'], troughcolor=c['bg'], arrowcolor=c['fg'])
         st.map(w, background=[('active', c['hover'])])
     st.configure('TSeparator', background=c['line'])
     st.configure('TPanedwindow', background=c['line'])
+    st.configure('TNotebook', background=c['bg'], bordercolor=c['line'], lightcolor=c['bg'], darkcolor=c['bg'])
+    st.configure('TNotebook.Tab', background=c['field'], foreground='#bbbbbb', bordercolor=c['line'],
+                 lightcolor=c['field'], darkcolor=c['field'], padding=(14, 3))
+    st.map('TNotebook.Tab', background=[('selected', c['bg']), ('active', c['hover'])],
+           foreground=[('selected', '#ffffff')], lightcolor=[('selected', c['accent'])])
     root.configure(bg=c['bg'])
     for key, val in (('*Background', c['bg']), ('*Foreground', c['fg']), ('*selectBackground', c['select']),
                      ('*selectForeground', '#ffffff'), ('*insertBackground', c['fg']),
@@ -233,90 +243,169 @@ def box_image(on):
 
 
 class SettingsDialog:
-    """Server, groups and window options; the composition gives every slot of a group its build."""
+    """Settings in pages: General (phBot, server, accounts), Groups, Escort (the 80+ / 95+ spots) and Builds (the
+    composition gives every slot of a group its build). Buttons act at once, the fields when Save is pressed."""
 
-    def __init__(self, app):
+    INTS = ('group_size', 'max_parallel_groups', 'final_level', 'launch_delay_seconds', 'disconnect_restart_seconds',
+            'training_radius')
+
+    def __init__(self, app, page=0):
         self.app = app
         mgr = app.mgr
         s = mgr.s
         self.builds = sorted(mgr.builds)
         self.comps = {k: list(v) for k, v in (s.get('compositions') or {}).items()}
         top = self.top = tk.Toplevel(app.root)
-        top.title('MassLeveler settings')
+        top.title('Settings')
         top.transient(app.root)
+        top.resizable(False, False)
         dark_title(top)
         top.grab_set()
-        f = ttk.Frame(top, padding=10)
-        f.pack(fill='both', expand=True)
+        self.nb = ttk.Notebook(top)
+        self.nb.pack(fill='both', expand=True, padx=8, pady=(8, 0))
+        general, groups, escort, builds = (self.page(t) for t in ('General', 'Groups', 'Escort', 'Builds'))
+        self.vars, self.labels, self.pages = {}, {}, {}
 
-        self.vars = {}
-        rows = [('server', 'Server name (as in phBot)', 'entry'), ('accounts_csv', 'Accounts file', 'file'),
-                ('name_prefix', 'Character name prefix', 'entry'), ('group_size', 'Players per group', 'spin8'),
-                ('max_parallel_groups', 'Groups at the same time', 'spin20'), ('final_level', 'Stop at level', 'spin140'),
-                ('member_mode', 'Members run with', 'mode'), ('launch_delay_seconds', 'Seconds between bot launches', 'spin120'),
-                ('disconnect_restart_seconds', 'Reopen a disconnected bot after (seconds)', 'spin300'),
-                ('training_radius', 'Training area radius (0 = from the plan)', 'spin200'),
-                ('hide_client', 'Hide the members\' game client', 'check'),
-                ('hide_leader_client', 'Hide the leader\'s game client too', 'check'),
-                ('minimize_bots', 'Start member bots hidden (tray)', 'check')]
-        for i, (key, label, kind) in enumerate(rows):
-            ttk.Label(f, text=label).grid(row=i, column=0, sticky='w', pady=2)
-            if kind == 'check':
-                v = tk.BooleanVar(value=bool(s.get(key)))
-                ttk.Checkbutton(f, variable=v).grid(row=i, column=1, sticky='w')
-            else:
-                v = tk.StringVar(value=str(s.get(key, '')))
-                if kind == 'mode':
-                    w = ttk.Combobox(f, textvariable=v, values=MEMBER_MODES, state='readonly', width=24)
-                elif kind.startswith('spin'):
-                    w = ttk.Spinbox(f, textvariable=v, from_=1, to=int(kind[4:]), width=8)
-                else:
-                    w = ttk.Entry(f, textvariable=v, width=40)
-                w.grid(row=i, column=1, sticky='w')
-                if kind == 'file':
-                    ttk.Button(f, text='...', width=3, command=lambda v=v: self.pick_file(v)).grid(row=i, column=2)
-            self.vars[key] = v
+        ttk.Label(general, text='phBot').grid(row=0, column=0, sticky='w', pady=3)
+        row = ttk.Frame(general)
+        row.grid(row=0, column=1, columnspan=2, sticky='w')
+        self.lbl_phbot = ttk.Label(row, wraplength=420)
+        self.lbl_phbot.pack(side='left')
+        ttk.Button(row, text='Choose...', command=self.choose_phbot).pack(side='left', padx=6)
+        self.show_phbot()
+        r = self.fields(general, 1, [('server', 'Server name (as in phBot)', 'entry'),
+                                     ('accounts_csv', 'Accounts file', 'file'),
+                                     ('name_prefix', 'Character name prefix', 'entry')])
+        ttk.Separator(general).grid(row=r, column=0, columnspan=3, sticky='ew', pady=10)
+        row = ttk.Frame(general)
+        row.grid(row=r + 1, column=0, columnspan=3, sticky='w')
+        ttk.Button(row, text='Open accounts.csv', command=lambda: app.open_path(s['accounts_csv'])).pack(side='left')
+        ttk.Button(row, text='Open proxies.csv', command=lambda: app.open_path(s['proxies_csv'])).pack(side='left', padx=6)
+        ttk.Button(row, text='Reload accounts and settings', command=self.reload).pack(side='left')
 
-        r = len(rows)
+        r = self.fields(groups, 0, [('group_size', 'Players per group', 'spin8'),
+                                    ('max_parallel_groups', 'Groups at the same time', 'spin20'),
+                                    ('final_level', 'Stop at level', 'spin140'),
+                                    ('member_mode', 'Members run with', 'mode'),
+                                    ('launch_delay_seconds', 'Seconds between bot launches', 'spin120'),
+                                    ('disconnect_restart_seconds', 'Reopen a disconnected bot after (seconds)', 'spin300'),
+                                    ('training_radius', 'Training area radius (0 = from the plan)', 'spin200')])
+        ttk.Separator(groups).grid(row=r, column=0, columnspan=3, sticky='ew', pady=10)
+        self.fields(groups, r + 1, [('hide_client', 'Hide the members\' game client', 'check'),
+                                    ('hide_leader_client', 'Hide the leader\'s game client too', 'check'),
+                                    ('minimize_bots', 'Start member bots hidden (tray)', 'check')])
+
         # one spot per free stage of settings.json (80+, 95+): empty = free, the user drives the escort
         spots = ml_core.high_spots(s)
         self.high = []      # (level, spot var, reverse var)
+        r = 0
         for lv in [str(st['min_level']) for st in s.get('escort_stages') or [] if st.get('user_spot')]:
+            if r:
+                ttk.Separator(escort).grid(row=r, column=0, columnspan=3, sticky='ew', pady=8)
+                r += 1
             sp = spots.get(lv) or {}
-            ttk.Label(f, text='Level %s+ spot: region,X,Y,Z (empty = free, you drive the escort)' % lv).grid(
-                row=r, column=0, sticky='w', pady=2)
+            ttk.Label(escort, text='Level %s+ spot (region,X,Y,Z)' % lv).grid(row=r, column=0, sticky='w', pady=3,
+                                                                              padx=(0, 12))
             spot_v = tk.StringVar(value='%d,%g,%g,%g' % (sp.get('region', 0), sp['x'], sp['y'], sp.get('z', 0))
                                   if sp else '')
-            ttk.Entry(f, textvariable=spot_v, width=40).grid(row=r, column=1, sticky='w')
-            ttk.Label(f, text='Reverse scroll to (empty = the nearest one)').grid(row=r + 1, column=0, sticky='w', pady=2)
+            ttk.Entry(escort, textvariable=spot_v, width=30).grid(row=r, column=1, sticky='w')
+            ttk.Label(escort, text='Reverse scroll to').grid(row=r + 1, column=0, sticky='w', pady=3)
             rev_v = tk.StringVar(value='' if sp.get('reverse_auto', True) else sp.get('reverse', ''))
-            ttk.Entry(f, textvariable=rev_v, width=40).grid(row=r + 1, column=1, sticky='w')
+            ttk.Entry(escort, textvariable=rev_v, width=30).grid(row=r + 1, column=1, sticky='w')
             if sp.get('reverse'):
-                ttk.Label(f, text='now: ' + sp['reverse'], foreground=DARK['dim']).grid(row=r + 1, column=2, sticky='w')
+                ttk.Label(escort, text='now: ' + sp['reverse'], foreground=DARK['dim']).grid(
+                    row=r + 1, column=2, sticky='w', padx=6)
             self.high.append((lv, spot_v, rev_v))
             r += 2
-        ttk.Separator(f).grid(row=r, column=0, columnspan=3, sticky='ew', pady=8)
-        ttk.Label(f, text='Group composition').grid(row=r + 1, column=0, sticky='w')
-        cbar = ttk.Frame(f)
-        cbar.grid(row=r + 1, column=1, columnspan=2, sticky='w')
+        ttk.Label(escort, foreground=DARK['dim'], wraplength=460, text=(
+            'Empty spot = free: you drive the escort.   Empty reverse = the nearest reverse point.' if self.high
+            else 'settings.json has no free escort stage.')).grid(row=r, column=0, columnspan=3, sticky='w', pady=(10, 0))
+
+        ttk.Label(builds, text='Group composition').grid(row=0, column=0, sticky='w', pady=3, padx=(0, 12))
+        row = ttk.Frame(builds)
+        row.grid(row=0, column=1, sticky='w')
         self.comp = tk.StringVar(value=s.get('composition', ''))
-        self.cb_comp = ttk.Combobox(cbar, textvariable=self.comp, values=sorted(self.comps), state='readonly', width=22)
+        self.cb_comp = ttk.Combobox(row, textvariable=self.comp, values=sorted(self.comps), state='readonly', width=20)
         self.cb_comp.pack(side='left')
         self.cb_comp.bind('<<ComboboxSelected>>', lambda e: self.show_slots())
-        ttk.Button(cbar, text='New', command=self.new_comp).pack(side='left', padx=4)
-        ttk.Button(cbar, text='Delete', command=self.del_comp).pack(side='left')
-        self.slots_frame = ttk.Frame(f)
-        self.slots_frame.grid(row=r + 2, column=0, columnspan=3, sticky='w', pady=4)
-        ttk.Label(f, text='Builds: ' + ', '.join('%s = %s' % (b, mgr.builds[b].get('name', b)) for b in self.builds),
-                  wraplength=560, foreground=DARK['dim']).grid(row=r + 3, column=0, columnspan=3, sticky='w')
+        ttk.Button(row, text='New', command=self.new_comp).pack(side='left', padx=(6, 0))
+        ttk.Button(row, text='Delete', command=self.del_comp).pack(side='left', padx=(4, 0))
+        self.slots_frame = ttk.Frame(builds)
+        self.slots_frame.grid(row=1, column=0, columnspan=2, sticky='w', pady=8)
+        ttk.Label(builds, text='Builds: ' + ', '.join('%s = %s' % (b, mgr.builds[b].get('name', b)) for b in self.builds),
+                  wraplength=460, foreground=DARK['dim']).grid(row=2, column=0, columnspan=2, sticky='w')
+        ttk.Separator(builds).grid(row=3, column=0, columnspan=2, sticky='ew', pady=10)
+        row = ttk.Frame(builds)
+        row.grid(row=4, column=0, columnspan=2, sticky='w')
+        ttk.Button(row, text='Edit builds.json', command=lambda: app.open_path('data/builds.json')).pack(side='left')
+        ttk.Button(row, text='Rebuild skill plans', command=app.on_rebuild).pack(side='left', padx=6)
         self.vars['group_size'].trace_add('write', lambda *a: self.show_slots())
         self.slot_vars = []
         self.show_slots()
 
-        bar = ttk.Frame(f)
-        bar.grid(row=r + 4, column=0, columnspan=3, sticky='e', pady=(10, 0))
-        ttk.Button(bar, text='Save', command=self.save).pack(side='left', padx=4)
-        ttk.Button(bar, text='Cancel', command=top.destroy).pack(side='left')
+        bar = ttk.Frame(top, padding=8)
+        bar.pack(fill='x')
+        ttk.Button(bar, text='Cancel', command=top.destroy).pack(side='right')
+        ttk.Button(bar, text='Save', style='Accent.TButton', command=self.save).pack(side='right', padx=6)
+        self.nb.select(page)
+
+    def page(self, title):
+        f = ttk.Frame(self.nb, padding=12)
+        self.nb.add(f, text=title)
+        return f
+
+    def fields(self, parent, r, rows):
+        """a label and a field per setting, from grid row r on; returns the next free row"""
+        s = self.app.mgr.s
+        for key, label, kind in rows:
+            if kind == 'check':
+                v = tk.BooleanVar(value=bool(s.get(key)))
+                ttk.Checkbutton(parent, text=label, variable=v).grid(row=r, column=0, columnspan=3, sticky='w', pady=2)
+            else:
+                ttk.Label(parent, text=label).grid(row=r, column=0, sticky='w', pady=3, padx=(0, 12))
+                v = tk.StringVar(value=str(s.get(key, '')))
+                if kind == 'mode':
+                    w = ttk.Combobox(parent, textvariable=v, values=MEMBER_MODES, state='readonly', width=24)
+                elif kind.startswith('spin'):
+                    w = ttk.Spinbox(parent, textvariable=v, from_=0 if key == 'training_radius' else 1,
+                                    to=int(kind[4:]), width=8)
+                elif kind == 'file':        # the entry with its ... button right after it
+                    w = ttk.Frame(parent)
+                    ttk.Entry(w, textvariable=v, width=30).pack(side='left')
+                    ttk.Button(w, text='...', width=3, command=lambda v=v: self.pick_file(v)).pack(side='left', padx=4)
+                else:
+                    w = ttk.Entry(parent, textvariable=v, width=30)
+                w.grid(row=r, column=1, sticky='w')
+            self.vars[key], self.labels[key], self.pages[key] = v, label, parent
+            r += 1
+        return r
+
+    def show_phbot(self):
+        p = ml_core.phbot_exe_path(self.app.mgr.s)
+        found = os.path.isfile(p)
+        self.lbl_phbot.config(text=os.path.normpath(p) + ('' if found else '   (NOT FOUND)'),
+                              foreground=DARK['link'] if found else DARK['bad'])
+
+    def choose_phbot(self):
+        if any(g.state in RUNNING for g in self.app.mgr.groups):
+            messagebox.showinfo('MassLeveler', 'Close the running groups first.', parent=self.top)
+            return
+        p = filedialog.askopenfilename(parent=self.top, title='Choose phBot.exe', initialdir=self.app.mgr.s['phbot_dir'],
+                                       filetypes=[('phBot', '*.exe'), ('All files', '*.*')])
+        if not p:
+            return
+        self.app.mgr.set_phbot(p)
+        self.app.rebuild_tree()
+        self.show_phbot()
+        for prob in self.app.mgr.problems():
+            self.app._log('CHECK: ' + prob)
+
+    def reload(self):
+        """accounts.csv / settings.json changed by hand: read them again and show the new values"""
+        page = self.nb.index('current')
+        self.top.destroy()
+        self.app.on_reload()
+        SettingsDialog(self.app, page)
 
     def pick_file(self, v):
         p = filedialog.askopenfilename(parent=self.top, filetypes=[('CSV', '*.csv'), ('All files', '*.*')])
@@ -370,10 +459,14 @@ class SettingsDialog:
         self.keep_slots()
         out = {}
         for key, v in self.vars.items():
-            val = v.get()
-            out[key] = int(val) if key in ('group_size', 'max_parallel_groups', 'final_level',
-                                           'launch_delay_seconds', 'disconnect_restart_seconds',
-                                           'training_radius') else val
+            out[key] = v.get()
+            if key in self.INTS:
+                try:
+                    out[key] = int(out[key])
+                except ValueError:
+                    self.nb.select(self.pages[key])
+                    messagebox.showwarning('Settings', 'Write a number in "%s".' % self.labels[key], parent=self.top)
+                    return
         out['escort_high_spot'] = None      # the old single 80+ spot, now in escort_high_spots
         out['escort_high_spots'] = {}
         for lv, spot_v, rev_v in self.high:
@@ -381,6 +474,7 @@ class SettingsDialog:
             if not text:
                 continue
             title = 'Level %s+ spot' % lv
+            self.nb.select(2)               # the Escort page, for the messages below
             try:
                 region, x, y, z = App.parse_coords(text)
             except ValueError as e:
@@ -416,79 +510,52 @@ class App:
     def __init__(self, root):
         self.root = root
         self.logq = queue.Queue()
+        self.shown = {}             # tree row -> what it shows: only rows that changed are drawn again
+        self.group_states = {}      # group -> its state at the last refresh (rows open / fold when it changes)
         self.mgr = ml_core.Manager(log=self._log)
-        root.title('MassLeveler Escort - group auto leveling with an escort')
-        root.geometry('1280x760')
+        root.title('MassLeveler Escort')
+        root.geometry('1100x700')
+        root.minsize(760, 420)
         root.protocol('WM_DELETE_WINDOW', self.on_close)
 
-        bar = ttk.Frame(root, padding=6)
+        # right-click a group / character for its actions; phBot path, files and builds are in Settings
+        bar = ttk.Frame(root, padding=(6, 6, 6, 4))
         bar.pack(fill='x')
-        self.btn_start = ttk.Button(bar, text='Start', command=self.on_start)
-        self.btn_start.pack(side='left')
-        ttk.Button(bar, text='Pause new groups', command=self.mgr.pause).pack(side='left', padx=4)
-        ttk.Button(bar, text='Stop all (close bots)', command=self.on_stop_all).pack(side='left', padx=4)
-        ttk.Button(bar, text='Restart bots', command=self.on_restart_all).pack(side='left')
-        ttk.Separator(bar, orient='vertical').pack(side='left', fill='y', padx=8)
-        ttk.Button(bar, text='Reload accounts/settings', command=self.on_reload).pack(side='left')
-        ttk.Button(bar, text='accounts.csv', command=lambda: self.open_path(self.mgr.s['accounts_csv'])).pack(side='left', padx=4)
-        ttk.Button(bar, text='proxies.csv', command=lambda: self.open_path(self.mgr.s['proxies_csv'])).pack(side='left')
-        ttk.Button(bar, text='Settings...', command=lambda: SettingsDialog(self)).pack(side='left', padx=4)
-        ttk.Button(bar, text='Builds (skills)', command=lambda: self.open_path('data/builds.json')).pack(side='left')
-        ttk.Button(bar, text='Rebuild skill plans', command=self.on_rebuild).pack(side='left', padx=4)
-        ttk.Button(bar, text='Training plan...', command=self.on_plan).pack(side='left')
-        ttk.Button(bar, text='Update', command=self.on_update).pack(side='left', padx=4)
-        self.lbl_summary = ttk.Label(bar, text='')
-        self.lbl_summary.pack(side='right')
-
-        pbar = ttk.Frame(root, padding=(6, 0, 6, 6))
-        pbar.pack(fill='x')
-        ttk.Label(pbar, text='phBot:').pack(side='left')
-        self.lbl_phbot = ttk.Label(pbar, text='', foreground=DARK['link'])
-        self.lbl_phbot.pack(side='left', padx=4)
-        ttk.Button(pbar, text='Choose phBot...', command=self.on_choose_phbot).pack(side='left', padx=4)
-        self.update_phbot_label()
-
-        gbar = ttk.Frame(root, padding=(6, 0))
-        gbar.pack(fill='x')
-        ttk.Label(gbar, text='Selected group:').pack(side='left')
-        ttk.Button(gbar, text='Start now', command=lambda: self.group_action('start_now')).pack(side='left', padx=2)
-        ttk.Button(gbar, text='Stop bots', command=lambda: self.group_action('stop')).pack(side='left', padx=2)
-        ttk.Button(gbar, text='Resume bots', command=lambda: self.group_action('start')).pack(side='left', padx=2)
-        ttk.Button(gbar, text='Finish now (return + done)', command=lambda: self.group_action('finish')).pack(side='left', padx=2)
-        ttk.Button(gbar, text='Close group', command=lambda: self.group_action('kill')).pack(side='left', padx=2)
-        ttk.Button(gbar, text='Reset to pending', command=lambda: self.group_action('reset')).pack(side='left', padx=2)
-        ttk.Separator(gbar, orient='vertical').pack(side='left', fill='y', padx=8)
-        ttk.Button(gbar, text='Restart selected character', command=self.restart_selected).pack(side='left', padx=2)
-
-        ttk.Label(root, padding=(6, 6, 6, 0), foreground=DARK['dim'],
-                  text='Tick box = plays, no tick = skipped.   Right-click a group or character: active / skip, '
-                       'group actions, show / hide bot and client (right-click empty space: all running).').pack(fill='x')
+        ttk.Button(bar, text='Start', style='Accent.TButton', command=self.on_start).pack(side='left')
+        for text, command in (('Stop all', self.on_stop_all), ('Finish all', self.on_finish_all),
+                              ('Restart bots', self.on_restart_all)):
+            ttk.Button(bar, text=text, command=command).pack(side='left', padx=(4, 0))
+        ttk.Button(bar, text='Update', command=self.on_update).pack(side='right')
+        ttk.Button(bar, text='Settings', command=lambda: SettingsDialog(self)).pack(side='right', padx=4)
+        self.lbl_summary = ttk.Label(bar, foreground=DARK['dim'])
+        self.lbl_summary.pack(side='right', padx=(0, 8))
+        self.lbl_dot = ttk.Label(bar, text='●')     # green: new groups start, grey: paused
+        self.lbl_dot.pack(side='right', padx=(0, 4))
 
         pan = ttk.PanedWindow(root, orient='vertical')
-        pan.pack(fill='both', expand=True, padx=6, pady=6)
+        pan.pack(fill='both', expand=True, padx=6, pady=(0, 6))
         frame = ttk.Frame(pan)
         self.img_on, self.img_off = box_image(True), box_image(False)
         self.tree = ttk.Treeview(frame, columns=COLUMNS, selectmode='browse')
-        self.tree.heading('#0', text='Group / character')
-        self.tree.column('#0', width=200)
+        self.tree.heading('#0', text='Group / character', anchor='w')
+        self.tree.column('#0', width=170, stretch=False)
         self.tree.bind('<Button-1>', self.on_click)
         self.tree.bind('<space>', lambda e: self.toggle(self.tree.focus()) or 'break')
         self.tree.bind('<Button-3>', self.on_menu)
         for c in COLUMNS:
-            self.tree.heading(c, text=HEADINGS[c])
-            self.tree.column(c, width=WIDTHS[c], anchor='w')
+            self.tree.heading(c, text=HEADINGS[c], anchor='w')
+            self.tree.column(c, width=WIDTHS[c], anchor='w', stretch=c == 'state')
         sb = ttk.Scrollbar(frame, orient='vertical', command=self.tree.yview)
         self.tree.configure(yscrollcommand=sb.set)
         self.tree.pack(side='left', fill='both', expand=True)
         sb.pack(side='right', fill='y')
-        self.tree.tag_configure('done', foreground=DARK['done'])
-        self.tree.tag_configure('bad', foreground=DARK['bad'])
-        self.tree.tag_configure('skipped', foreground=DARK['dim'])
+        for tag, color in (('done', 'done'), ('bad', 'bad'), ('escort', 'escort'), ('skipped', 'dim')):
+            self.tree.tag_configure(tag, foreground=DARK[color])
         self.tree.tag_configure('group', font=('Segoe UI', 9, 'bold'))
         pan.add(frame, weight=4)
 
         logf = ttk.Frame(pan)
-        self.logbox = tk.Text(logf, height=10, wrap='none', font=('Consolas', 9), bg=DARK['panel'], fg=DARK['fg'],
+        self.logbox = tk.Text(logf, height=8, wrap='none', font=('Consolas', 9), bg=DARK['panel'], fg=DARK['fg'],
                               insertbackground=DARK['fg'], relief='flat', highlightthickness=0)
         lsb = ttk.Scrollbar(logf, orient='vertical', command=self.logbox.yview)
         self.logbox.configure(yscrollcommand=lsb.set)
@@ -562,9 +629,9 @@ class App:
             if m:
                 self.add_active_items(menu, g, m, '%s plays with the group' % m.character)
                 self.add_item(menu, 'Restart character', self.restart_selected, g.state in RUNNING)
-                self.add_spot_menu(menu, g, m)
                 menu.add_separator()
-                self.add_bot_items(menu, [m] if g.state in RUNNING else [])
+                self.add_spot_menu(menu, g, m)
+                self.add_bot_menu(menu, [m] if g.state in RUNNING else [])
                 menu.add_separator()
                 sub = tk.Menu(menu, tearoff=0)
                 self.add_group_items(sub, g)
@@ -597,12 +664,18 @@ class App:
         self.add_item(menu, 'Finish now (return + done)', lambda: self.group_action('finish', g), run)
         self.add_item(menu, 'Restart group bots', lambda: self.group_action('restart', g), run)
         self.add_item(menu, 'Close group', lambda: self.group_action('kill', g), run)
-        self.add_item(menu, 'Mark finished (done, never started again)', lambda: self.group_action('mark_done', g),
+        self.add_item(menu, 'Mark finished', lambda: self.group_action('mark_done', g),
                       g.state != 'done' and not g.escort)
         self.add_item(menu, 'Reset to pending', lambda: self.group_action('reset', g), not run)
-        self.add_spot_menu(menu, g, None)
         menu.add_separator()
-        self.add_bot_items(menu, list(g.members) if run else [])
+        self.add_spot_menu(menu, g, None)
+        self.add_bot_menu(menu, list(g.members) if run else [])
+
+    def add_bot_menu(self, menu, members):
+        """phBot's own Manager menu, as a submenu"""
+        sub = tk.Menu(menu, tearoff=0)
+        self.add_bot_items(sub, members)
+        menu.add_cascade(label='     phBot', menu=sub, foreground=DARK['fg'] if members else DARK['dim'])
 
     # -------------------------------------------------- training spots
     def add_spot_menu(self, menu, g, m):
@@ -776,11 +849,17 @@ class App:
                 if g.state in ('launching', 'running'):
                     self.mgr.kill_group(g, 'stopped')
 
-    def on_plan(self):
-        g = self.selected()[0] or next((x for x in self.mgr.groups if x.state in RUNNING), None) or \
-            (self.mgr.groups[0] if self.mgr.groups else None)
-        if g:
-            PlanWindow(self, g)
+    def on_finish_all(self):
+        """every running group (not the escort) goes back to town and is done; no new group starts"""
+        running = [g for g in self.mgr.groups if g.state in RUNNING and not g.escort]
+        if not running:
+            messagebox.showinfo('MassLeveler', 'No running group.')
+            return
+        if messagebox.askyesno('MassLeveler', 'Finish %s now?\n\nThey go back to town and are done; no new group '
+                               'starts until you press Start.' % ', '.join(g.gid for g in running)):
+            self.mgr.pause()
+            for g in running:
+                self.mgr.send(g, 'finish')
 
     def on_restart_all(self):
         running = [g for g in self.mgr.groups if g.state in RUNNING]
@@ -791,26 +870,9 @@ class App:
             for g in running:
                 self.mgr.restart_group(g)
 
-    def update_phbot_label(self):
-        p = ml_core.phbot_exe_path(self.mgr.s)
-        self.lbl_phbot.config(text=os.path.normpath(p) + ('' if os.path.isfile(p) else '   (NOT FOUND)'))
-
-    def on_choose_phbot(self):
-        if any(g.state in ('launching', 'running') for g in self.mgr.groups):
-            messagebox.showinfo('MassLeveler', 'Close the running groups first.')
-            return
-        p = filedialog.askopenfilename(title='Choose phBot.exe', initialdir=self.mgr.s['phbot_dir'],
-                                       filetypes=[('phBot', '*.exe'), ('All files', '*.*')])
-        if not p:
-            return
-        self.mgr.set_phbot(p)
-        self.update_phbot_label()
-        for prob in self.mgr.problems():
-            self._log('CHECK: ' + prob)
-
     def on_reload(self):
         self.mgr.reload()
-        self.update_phbot_label()
+        self.rebuild_tree()
         for p in self.mgr.problems():
             self._log('CHECK: ' + p)
 
@@ -871,8 +933,9 @@ class App:
         threading.Thread(target=work, daemon=True).start()
 
     def rebuild_tree(self):
-        for iid in self.tree.get_children():
-            self.tree.delete(iid)
+        self.tree.delete(*self.tree.get_children())
+        self.shown.clear()
+        self.group_states.clear()
         self.refresh(schedule=False)
 
     def restart_selected(self):
@@ -949,51 +1012,53 @@ class App:
                 self.mgr.tick()     # keeps statuses fresh before Start is pressed
             except Exception as e:
                 self._log('refresh error: %s' % e)
-        now = time.time()
         counts = {}
         for g in self.mgr.groups:
             counts[g.state] = counts.get(g.state, 0) + 1
+            run = g.state in RUNNING
             garea = ''
-            if g.state in RUNNING:
+            if run:
                 try:
                     area, spots, i = self.mgr.group_area(g)
                     if area:
                         garea = '%s   [spot %d/%d %s]' % (area['name'], i + 1, len(spots), spots[i].get('src', 'plan'))
                 except Exception:
                     pass
-            gvals = ('', '', g.min_level(), '', '', '', garea, '%s  %s' % (g.state, g.message), '', '', '', '')
-            gtags = ('group', {'done': 'done', 'skipped': 'skipped'}.get(g.state, ''))
-            gimg = self.img_off if g.state == 'skipped' else self.img_on
-            if self.tree.exists(g.gid):
-                self.tree.item(g.gid, values=gvals, tags=gtags, image=gimg)
-            else:
-                self.tree.insert('', 'end', iid=g.gid, text=' ' + g.gid, values=gvals, open=True, tags=gtags, image=gimg)
+            # colors: escort yellow, dead / error red, finished green, skipped grey
+            color = 'skipped' if g.state == 'skipped' else 'bad' if g.state == 'failed' else \
+                'escort' if g.escort else 'done' if g.state == 'done' else ''
+            self.put(g.gid, '', g.gid, (g.min_level(), '', '', garea, '%s  %s' % (g.state, g.message)),
+                     ('group', color), self.img_off if g.state == 'skipped' else self.img_on)
+            if self.group_states.get(g.gid) != g.state:     # running groups open, the others fold up
+                self.tree.item(g.gid, open=g.escort or run)
+                self.group_states[g.gid] = g.state
             for m in g.all_members:
                 st = m.status or {}
-                iid = g.gid + '|' + m.character
-                age = now - st.get('ts', 0) if st.get('ts') else None
-                hp = '%s/%s' % (st.get('hp', ''), st.get('hp_max', '')) if st.get('hp_max') else ''
-                state = st.get('state', '')
-                if st.get('dead'):
-                    state += ' (dead)'
+                dead = run and st.get('dead')
+                state = st.get('state', '') + (' (dead)' if dead else '')
                 if st.get('message'):
                     state += ' - ' + st['message']
-                skills = '%s / %s' % (st['attack_skills'], st.get('zerk_uses', 0)) if 'attack_skills' in st else ''
-                vals = ('skip' if m.skip else m.role, m.build, st.get('level', ''), st.get('exp_pct', ''), hp, st.get('zone', ''),
-                        st.get('area', ''), state, st.get('party', ''), skills, m.restarts,
-                        ('%ds' % age) if age is not None and age < 3600 else '-')
-                tag = 'skipped' if m.skip else 'done' if st.get('state') == 'done' or \
-                    self.mgr.progress.get(m.character) == 'finished' else \
-                    'bad' if st.get('state') == 'error' else ''
-                img = self.img_off if m.skip else self.img_on
-                if self.tree.exists(iid):
-                    self.tree.item(iid, values=vals, tags=(tag,), image=img)
-                else:
-                    self.tree.insert(g.gid, 'end', iid=iid, text=' ' + m.character, values=vals, tags=(tag,), image=img)
-        self.lbl_summary.config(text='%s   |   launching: %s' % (
-            '  '.join('%s: %d' % kv for kv in sorted(counts.items())), 'ON' if self.mgr.running else 'paused'))
+                color = 'skipped' if m.skip or g.state == 'skipped' else 'bad' if dead or st.get('state') == 'error' else \
+                    'escort' if g.escort else 'done' if st.get('state') == 'done' or \
+                    self.mgr.progress.get(m.character) == 'finished' else ''
+                self.put(g.gid + '|' + m.character, g.gid, m.character,
+                         (st.get('level', ''), st.get('exp_pct', ''), st.get('zone', ''), st.get('area', ''), state),
+                         (color,), self.img_off if m.skip else self.img_on)
+        self.lbl_summary.config(text=' · '.join('%d %s' % (counts[k], k) for k in (
+            'running', 'launching', 'pending', 'done', 'stopped', 'failed', 'skipped') if counts.get(k)))
+        self.lbl_dot.config(foreground=DARK['done'] if self.mgr.running else DARK['dim'])
         if schedule:
             self.root.after(2000, self.refresh)
+
+    def put(self, iid, parent, text, values, tags, image):
+        """add a tree row, or draw it again only when what it shows changed"""
+        tags = tuple(t for t in tags if t)
+        shown = (values, tags, str(image))
+        if not self.tree.exists(iid):
+            self.tree.insert(parent, 'end', iid=iid, text=' ' + text, values=values, tags=tags, image=image)
+        elif self.shown.get(iid) != shown:
+            self.tree.item(iid, values=values, tags=tags, image=image)
+        self.shown[iid] = shown
 
 
 def main():
