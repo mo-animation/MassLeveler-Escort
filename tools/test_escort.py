@@ -207,6 +207,54 @@ mc.clear()
 run(m)
 check(not got(mc, 'reverse') and 'free' in m.message, 'lowest 80, no escort status: waits, no reverse')
 
+# the escort waits in town (died 3 times in 5 minutes, or no reverse scroll left): the group goes back to it
+WING = STAGES[3]
+
+
+def escort_status(x, y, town_wait):
+    json.dump({'name': 'wiz01', 'level': 100, 'x': x, 'y': y, 'dead': False, 'state': 'leveling', 'ts': time.time(),
+               'town_wait': town_wait}, open(SH + 'status/wiz01.json', 'w'))
+
+
+status('fnuk09', 70, WING['x'], WING['y'])
+mchar.update(level=70, x=WING['x'], y=WING['y'], dead=False)
+mzone['name'] = 'Roc Mountain'
+escort_status(*JANGAN, True)
+m.tracing, m.last_return, m.last_reverse = True, 0, 0
+mc.clear()
+run(m)
+check(got(mc, 'stop_trace') and got(mc, 'return') and not got(mc, 'reverse') and 'back to town' in m.message,
+      'escort waits in town, member at the Wing: stops tracing, return scroll to town (no reverse)')
+mc.clear()
+run(m)
+check(not got(mc, 'return'), 'no second return scroll within a minute')
+mchar['dead'] = True
+m.dead_since = 0
+run(m)
+m.dead_since = time.time() - 3
+mc.clear()
+run(m)
+check(('inject', 0x3053, b'\x01') in mc, 'dead while the escort waits in town: respawns in town at once (no 2 min wait)')
+mchar.update(dead=False, x=JANGAN[0] + 400, y=JANGAN[1])
+mzone['name'] = 'Jangan'
+m.tracing = False
+mc.clear()
+run(m)
+check(got(mc, 'trace') == [('trace', 'wiz01')] and not got(mc, 'reverse') and not got(mc, 'return'),
+      'in town: traces the escort there (even 400 away), no reverse')
+escort_status(WING['x'], WING['y'], False)
+m.last_reverse = 0
+mc.clear()
+run(m)
+check(got(mc, 'reverse') == [('reverse', 3, WING['reverse'])], 'the escort went back: reverse to the stage as usual')
+escort_status(*JANGAN, False)
+mchar.update(x=WING['x'], y=WING['y'])
+mzone['name'] = 'Roc Mountain'
+m.last_return = 0
+mc.clear()
+run(m)
+check(not got(mc, 'return'), 'escort just in town (not waiting): no return scroll')
+
 # the end
 status('fnuk09', 85, PENON['x'], PENON['y'])
 mchar['level'] = 85
@@ -277,6 +325,57 @@ e.esc['respawn_at'] = time.time() - 20
 ec.clear()
 run(e)
 check(got(ec, 'pos') and e.bot_started and e.esc['phase'] == 'hunt', 'back at the death point: hunts again, no waiting')
+
+# died 3 times in 5 minutes: no reverse back alone, waits in town for the whole group, then they go back together
+e.esc['deaths'] = [time.time() - 100, time.time() - 50]
+echar['dead'] = True
+run(e)
+e.esc['dead_since'] = time.time() - 3
+ec.clear()
+run(e)
+check(('inject', 0x3053, b'\x01') in ec and len(e.esc['deaths']) == 3, 'third death in 5 minutes: respawns in town')
+echar.update(dead=False, x=JANGAN[0], y=JANGAN[1])
+ezone['name'] = 'Jangan'
+e.last_reverse = 0
+ec.clear()
+run(e)
+check(not got(ec, 'reverse') and e.esc['regroup'] and e.town_wait and 'waiting in town for the group, 0/2' in e.message,
+      'in town: no reverse to the death point, waits for the group (0/2 here)')
+e.last_status = 0
+run(e)
+check(json.load(open(SH + 'status/wiz01.json')).get('town_wait') is True, 'its status tells the group it waits in town')
+status('fnuk17', 55, JANGAN[0] + 10, JANGAN[1])
+run(e)
+check('1/2 here' in e.message and not got(ec, 'reverse'), 'one member back in town: keeps waiting')
+status('fnuk18', 52, JANGAN[0] + 20, JANGAN[1] + 5)
+run(e)
+check('going back together in' in e.message, 'everyone in town: waits the extra seconds')
+e.esc['gather_since'] = time.time() - 11
+ec.clear()
+run(e)
+check(not e.esc['regroup'] and e.esc['phase'] == 'travel' and e.esc['deaths'] == [] and
+      got(ec, 'reverse') == [('reverse', 3, KARRA['reverse'])],
+      'then reverse to the stage (Fertility Temple); the escort waits there for everyone before hunting')
+run(e)
+check(not e.town_wait, 'not waiting in town any more')
+
+# stuck in town, the reverse fails (no scroll left): it tells the group to come to town
+e.reverse_return = lambda t, n: ec.append(('reverse', t, n)) or False
+e.last_reverse = 0
+run(e, 2)
+check(e.town_wait and any('reverse scroll failed' in c[1] for c in got(ec, 'log')), 'reverse failed in town: waits there, the group comes')
+e.reverse_return = lambda t, n: ec.append(('reverse', t, n)) or True
+e.last_reverse = 0
+run(e, 2)
+check(not e.town_wait, 'a reverse went through: not waiting any more')
+echar.update(x=KARRA['x'], y=KARRA['y'])
+ezone['name'] = 'Fertility Temple'
+status('fnuk17', 52, KARRA['x'], KARRA['y'])
+status('fnuk18', 55, KARRA['x'], KARRA['y'])
+run(e)
+e.esc['gather_since'] = time.time() - 11
+run(e)
+check(e.esc['phase'] == 'hunt', 'back at Karra with everyone: hunts')
 
 status('fnuk17', 80, KARRA['x'], KARRA['y'])
 status('fnuk18', 82, KARRA['x'], KARRA['y'])

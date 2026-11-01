@@ -101,7 +101,12 @@ Double-click `MassLeveler.bat`, then press **Start**.
 2. phBot logs in with `--character`. If the character doesn't exist, the plugin creates it and selects it.
 3. Levels 1–5: everyone plays solo, because a party isn't possible yet. From level 5 the escort's phBot invites them into its party.
 4. Every 2 s each bot reads the other 7 status files. It uses the **lowest level** to pick the area, so all 8 switch at the same time. phBot then walks there with its own path finding.
-5. When the lowest member is 101, every bot stops, uses a return scroll and waits in town. The manager then closes all 8 bots (and the leader's client) and starts the next batch.
+5. **Deaths**: the escort respawns in town and reverses straight back to where it died. If it died 3 times within
+   5 minutes, it doesn't go back alone: it waits in town, and every member comes to it (dead ones respawn in town,
+   the rest use a return scroll). When everyone is there, they reverse to the stage together, and the escort waits
+   for all of them before hunting. The same happens when the escort is in town and its reverse scroll fails (none
+   left): the group waits with it instead of staying split.
+6. When the lowest member is 101, every bot stops, uses a return scroll and waits in town. The manager then closes all 8 bots (and the leader's client) and starts the next batch.
 
 ## Settings worth knowing (`settings.json`)
 

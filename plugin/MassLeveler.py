@@ -46,7 +46,7 @@ import struct
 import time
 
 pName = 'MassLeveler'
-pVersion = '2.6.0-escort'
+pVersion = '2.7.0-escort'
 
 LEARN_SECONDS = 10
 IGNORE_OPCODES = {0x2002, 0x7021, 0x7074, 0x7034}   # ping, movement, attack/skill, inventory move
@@ -75,6 +75,8 @@ TRACE_RETRY = 20.0
 STATUS_FRESH = 30.0         # an escort status older than this: the escort is not in game
 MEMBER_RES_WAIT = 120.0     # dead member not resurrected (by the escort or the party) this long: town
 ESCORT_RES_WAIT = 2.0       # dead escort: town after this, then reverse straight to its death point
+DEATH_LOOP_COUNT = 3        # the escort died this often within DEATH_LOOP_SECONDS: no reverse back alone, it waits
+DEATH_LOOP_SECONDS = 300.0  # in town for the whole group, then they go back together
 
 # ---------------------------------------------------------------- runtime state
 group_id = ''
@@ -129,7 +131,11 @@ last_reverse = 0.0
 dead_since = 0.0
 death_back = False           # member: respawned in town at once, reverse to the death point next
 solo_active = False          # member: leveling alone below the group's solo_level (no party yet)
-esc ={'key': None, 'phase': 'travel', 'gather_since': 0.0, 'death_pending': False, 'respawned': False, 'respawn_at': 0.0}
+esc ={'key': None, 'phase': 'travel', 'gather_since': 0.0, 'death_pending': False, 'respawned': False, 'respawn_at': 0.0,
+      'deaths': [], 'regroup': False}
+reverse_ok = True            # the last reverse scroll went through (False: none left, or a wrong name)
+town_wait = False            # escort: it waits in town (regroup after dying, or no reverse scroll): the group comes
+last_return = 0.0            # member: last return scroll to the escort waiting in town
 learning_until = 0
 captured_pending = []
 captured_seen = set()
@@ -949,7 +955,7 @@ def write_status(d):
     if not my_char:
         return
     st = {'name': my_char, 'group': group_id, 'pid': os.getpid(), 'ts': time.time(),
-          'state': state, 'message': message, 'area': current_area, 'bot_started': bot_started,
+          'state': state, 'message': message, 'area': current_area, 'bot_started': bot_started, 'town_wait': town_wait,
           'spot': list(current_spot) if current_spot else None,
           'collected_levels': sorted(collected_levels), 'profile': profile_name, 'zerk_uses': zerk_uses,
           'attack_skills': len(applied_skills[1]['sNormal']) if applied_skills else 0,
@@ -1086,7 +1092,7 @@ def fresh_status(name):
 
 def use_reverse(zone, now):
     """reverse scroll to a zone of the game's reverse list (zone '' = to the death point); one try a minute"""
-    global last_reverse
+    global last_reverse, reverse_ok
     if now - last_reverse < REVERSE_RETRY:
         return
     last_reverse = now
@@ -1095,6 +1101,7 @@ def use_reverse(zone, now):
     except Exception as e:
         ok = False
         _log('reverse_return failed: %s' % e)
+    reverse_ok = bool(ok)
     _log('Reverse scroll -> %s%s' % (zone or 'death point', '' if ok else ' FAILED (name not in the game\'s reverse list, or no reverse scroll)'))
 
 
@@ -1151,11 +1158,13 @@ def stop_tracing():
 def member_escort_tick(d, lvl, gmin, now, cmd):
     """a group member: reverse to the stage, then bot-trace the escort (it waits for everyone there)"""
     global tracing, trace_started, trace_far_since, dead_since, current_area, solo_active, bot_started, current_spot, \
-        death_back, last_reverse
+        death_back, last_reverse, last_return
     stage = stage_for(gmin)
     if not stage:
         _set_state('error', 'no escort stages in the group file')
         return
+    escort = fresh_status(group['escort_name']) if group.get('escort_name') else None
+    esc_waits = bool(escort and escort.get('town_wait'))    # the escort waits in town: everyone goes to it
     fast = lvl < int(group.get('fast_respawn_level', 0))
     if d.get('dead') and fast:
         tracing = False
@@ -1166,7 +1175,9 @@ def member_escort_tick(d, lvl, gmin, now, cmd):
         _set_state('leveling', 'dead - respawning in town')
         return
     if death_back:
-        if in_town(d):
+        if in_town(d) and esc_waits:
+            death_back = False            # stays with the escort in town
+        elif in_town(d):
             stop_tracing()
             use_reverse('', now)
             _set_state('leveling', 'back from town to the death point')
@@ -1178,8 +1189,9 @@ def member_escort_tick(d, lvl, gmin, now, cmd):
     if d.get('dead'):
         tracing = False
         dead_since = dead_since or now
-        if now - dead_since > MEMBER_RES_WAIT:
-            _log('Dead for %d s and not resurrected - respawn in town' % (now - dead_since))
+        if now - dead_since > MEMBER_RES_WAIT or (esc_waits and now - dead_since > 2):
+            _log('Dead for %d s and not resurrected - respawn in town' % (now - dead_since) if not esc_waits
+                 else 'Dead and the escort waits in town - respawn in town')
             inject_joymax(0x3053, b'\x01', False)
             dead_since = now
         _set_state('leveling', 'dead - waiting for a resurrect')
@@ -1202,9 +1214,21 @@ def member_escort_tick(d, lvl, gmin, now, cmd):
         bot_started = False
     current_area = stage['name']
     me = get_position() or {'x': d.get('x', 0), 'y': d.get('y', 0)}
-    escort = fresh_status(group['escort_name'])
+    if esc_waits and not in_town(d):
+        stop_tracing()                    # the group does not stay split: back to the escort in town
+        if now - last_return > REVERSE_RETRY:
+            last_return = now
+            try:
+                ok = use_return_scroll()
+            except Exception as e:
+                ok = False
+                _log('use_return_scroll failed: %s' % e)
+            _log('The escort %s waits in town - return scroll%s' % (group['escort_name'], '' if ok else
+                                                                    ' FAILED (none left?)'))
+        _set_state('leveling', 'going back to town: the escort %s waits there' % group['escort_name'])
+        return
     free = bool(stage.get('free'))        # no place: trace the escort wherever the user takes it
-    if escort and not escort.get('dead') and (free or dist(me, escort) < MEMBER_NEAR):
+    if escort and not escort.get('dead') and (free or esc_waits or dist(me, escort) < MEMBER_NEAR):
         far = dist(me, escort) > TRACE_LOST
         trace_far_since = (trace_far_since or now) if far else 0.0
         if cmd == 'start' or not tracing or (trace_far_since and now - trace_far_since > TRACE_RETRY):
@@ -1239,11 +1263,12 @@ def apply_stage_point(stage):
 
 def escort_tick(d, now, cmd):
     """the escort: go to the stage of its group's lowest level, wait for everyone + a few seconds, hunt there"""
-    global bot_started, current_area, last_reverse
+    global bot_started, current_area, last_reverse, town_wait
     target = _read_json(base_dir() + 'escort.json') or {}
     names = target.get('members') or []
     gmin = group_min_level(None, names) if names else 1
     stage = stage_for(gmin)
+    town_wait = False
     if not stage:
         _set_state('error', 'no escort stages in the group file')
         return
@@ -1251,6 +1276,8 @@ def escort_tick(d, now, cmd):
         if bot_started:
             stop_bot()
             bot_started = False
+        if not esc.get('dead_since'):
+            esc['deaths'] = [t for t in esc['deaths'] if now - t < DEATH_LOOP_SECONDS] + [now]
         esc['dead_since'] = esc.get('dead_since') or now
         if now - esc['dead_since'] > ESCORT_RES_WAIT and (not esc['respawned'] or now - esc['respawn_at'] > 5):
             _log('Escort died - respawn in town, then reverse to the death point')
@@ -1262,18 +1289,52 @@ def escort_tick(d, now, cmd):
     esc['dead_since'], esc['respawned'] = 0.0, False
     me = get_position() or {'x': d.get('x', 0), 'y': d.get('y', 0)}
     if esc['death_pending']:
-        if in_town(d):
+        deaths = [t for t in esc['deaths'] if now - t < DEATH_LOOP_SECONDS]
+        if in_town(d) and len(deaths) >= DEATH_LOOP_COUNT and names:
+            esc.update(death_pending=False, regroup=True, gather_since=0.0)
+            _log('Escort died %d times in %d minutes - waits in town for the whole group, then they go back '
+                 'together' % (len(deaths), DEATH_LOOP_SECONDS // 60))
+        elif in_town(d):
             use_reverse('', now)            # straight back to where it died, no town script
             _set_state('leveling', 'back from town to the death point')
             return
-        if now - esc.get('respawn_at', 0) < 15:
+        elif now - esc.get('respawn_at', 0) < 15:
             _set_state('leveling', 'respawning in town')
             return                          # alive, but not teleported to town yet
-        esc['death_pending'] = False
-        if esc['phase'] == 'hunt':
-            apply_stage_point(stage)
-            restart_bot()
-            _log('Back at the death point - hunting at %s again' % stage['name'])
+        else:
+            esc['death_pending'] = False
+            if esc['phase'] == 'hunt':
+                apply_stage_point(stage)
+                restart_bot()
+                _log('Back at the death point - hunting at %s again' % stage['name'])
+    if esc['regroup'] and not (in_town(d) and names):
+        esc['regroup'] = False              # taken out of town by hand, or the group finished
+    if esc['regroup']:
+        town_wait = True
+        online = [n for n in names if fresh_status(n)]     # closed bots come by themselves when restarted
+        here = [n for n in online if (lambda st: not st.get('dead') and dist(me, st) <= float(group.get('gather', 60)))(
+            fresh_status(n))]
+        if not online or len(here) < len(online):
+            esc['gather_since'] = 0.0
+            _set_state('leveling', 'died %d times: waiting in town for the group, %d/%d here' % (
+                len(esc['deaths']), len(here), len(online)))
+            return
+        esc['gather_since'] = esc['gather_since'] or now
+        left = float(group.get('wait', 10)) - (now - esc['gather_since'])
+        if left > 0:
+            _set_state('leveling', 'everyone in town - going back together in %d s' % math.ceil(left))
+            return
+        _log('Whole group with the escort in town - going back to %s together' % stage['name'])
+        esc.update(regroup=False, deaths=[], gather_since=0.0)
+        last_reverse = 0.0
+        if stage.get('free'):               # the user's place: back to where it died
+            esc.update(death_pending=True, respawn_at=now)
+            return
+        esc['phase'] = 'travel'             # reverse to the stage, wait there for everyone, then hunt
+    town_wait = in_town(d) and not reverse_ok
+    if town_wait and not esc.get('stuck_logged'):
+        _log('In town and the reverse scroll failed (none left?) - the group comes to wait with it in town')
+    esc['stuck_logged'] = town_wait
     if stage.get('free'):
         # the user takes the escort anywhere by hand: no reverse, no training point, its bot is left alone
         key = (target.get('group'), stage['name'])
