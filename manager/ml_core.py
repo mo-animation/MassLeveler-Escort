@@ -1153,14 +1153,17 @@ class Manager:
     def escort_group(self):
         return next((g for g in getattr(self, 'groups', []) if g.escort and g.members), None)
 
-    def group_characters(self, party=False):
-        """party = only groups the escort's party has room for (an old group of 8 has its own party)"""
-        return [m.character for g in self.groups if g.state != 'skipped' and not g.escort
-                and not (party and len(g.members) >= PARTY_MAX) for m in g.members]
+    def group_characters(self):
+        return [m.character for g in self.groups if g.state != 'skipped' and not g.escort for m in g.members]
+
+    def sheet_characters(self):
+        """every character of accounts.csv but the escort (also switched off ones and groups of 8): the escort's
+        invite list stays the same whatever plays; only one group of 7 is open at a time anyway"""
+        return [m.character for g in self.groups if not g.escort for m in g.all_members]
 
     def update_escort_party(self):
-        """the escort's phBot profile (the one it uses now): party leader, auto-invites every group character
-        (exp + item share; they accept only it and leave when it does), no union, resurrects them all. Returns the
+        """the escort's phBot profile (the one it uses now): party leader, auto-invites every character of the
+        sheet (exp + item share; they accept only it and leave when it does), no union, resurrects them all. Returns the
         profile file when it changed (an open phBot reloads it on a profile change)."""
         master = self.s.get('escort_name')
         if not master or not self.escort_group():
@@ -1177,9 +1180,9 @@ class Manager:
         up = prof.setdefault('Union Party', {})
         party = prof.setdefault('Party', {})
         res = prof.setdefault('Auto Resurrect', {})
-        # the escort is the party leader: it invites the characters of the groups (one group plays at a time)
+        # the escort is the party leader: it invites every character of the sheet (one group plays at a time)
         want = {'AutoUnionPartyInvite': False, 'AcceptUnionPartyInvites': False, 'UnionPartyInvite': []}
-        want_party = {'AutoInviteParty': True, 'Invite From List': True, 'InviteList': self.group_characters(party=True),
+        want_party = {'AutoInviteParty': True, 'Invite From List': True, 'InviteList': self.sheet_characters(),
                       'AutoAcceptParty': False, 'Accept Invites From List': False, 'Accept All Invites': False,
                       'Invite All Players': False, 'AutoFormParty': False, 'Party Leader Names': [],
                       'LeaveIfLeaderNotInList': False, 'PartyInviteType': self.s['party_invite_type']}

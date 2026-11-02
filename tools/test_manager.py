@@ -499,8 +499,8 @@ p8 = json.load(open(os.path.join(cfg, 'Elysian_%s.json' % g8.members[1].characte
 check(p8['InviteList'] == [names8[0]] and p8['AutoAcceptParty'],
       'a group of 8 has its own party (no room for the escort): its first character invites')
 mgr8.update_escort_party()
-check(json.load(open(os.path.join(cfg, 'Elysian_wiz01.json')))['Party']['InviteList'] == names8[8:],
-      'the escort invites only the groups of 7')
+check(json.load(open(os.path.join(cfg, 'Elysian_wiz01.json')))['Party']['InviteList'] == names8,
+      'the escort invites every character of the sheet (groups of 8 too)')
 # groups by hand: drag a character into another group / a new one, delete, restore; kept in the layout file
 lay_path = os.path.join(TMP, 'settings_lay.json')
 json.dump(dict(esc_s, first_groups={'characters': 8, 'size': 8}, layout=os.path.join(TMP, 'layout_t.json')),
