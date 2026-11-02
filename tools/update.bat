@@ -30,8 +30,9 @@ if not defined GIT (
     exit /b 1
 )
 rem safe.directory: git refuses a folder another Windows user (or a copy) owns; no fsync: some drives refuse it
-rem ("fsync error on .git/objects/..: Bad file descriptor")
-set G="%GIT%" -c safe.directory=* -c core.fsyncObjectFiles=false -c core.fsync=none
+rem ("fsync error on .git/objects/..: Bad file descriptor"); unpackLimit 1: a fetch keeps GitHub's pack file
+rem instead of one file per object in .git\objects\xx
+set G="%GIT%" -c safe.directory=* -c core.fsyncObjectFiles=false -c core.fsync=none -c fetch.unpackLimit=1
 rem One block from here: git may replace this file, and cmd reads a batch file again after every command.
 rem No commit yet (first update), or a pull that cannot go on (history rewritten on GitHub): take GitHub's
 rem program files, settings.json kept.

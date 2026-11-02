@@ -1442,9 +1442,11 @@ class App:
                                 os.path.expandvars(r'%LOCALAPPDATA%\Programs\Git\cmd\git.exe'))
                     if p and os.path.isfile(p)), None)
         # safe.directory: git refuses a folder another Windows user (or a copy) owns; no fsync: some drives refuse
-        # it ("fsync error on .git/objects/..: Bad file descriptor"), Git for Windows turns fsyncObjectFiles on
+        # it ("fsync error on .git/objects/..: Bad file descriptor"), Git for Windows turns fsyncObjectFiles on;
+        # unpackLimit 1: a fetch keeps GitHub's pack file instead of one file per object in .git/objects/xx
         run = lambda *a: subprocess.run([git, '-c', 'safe.directory=*', '-c', 'core.fsyncObjectFiles=false',
-                                         '-c', 'core.fsync=none'] + list(a), cwd=ml_core.ROOT,
+                                         '-c', 'core.fsync=none', '-c', 'fetch.unpackLimit=1'] + list(a),
+                                        cwd=ml_core.ROOT,
                                         capture_output=True, text=True,
                                         creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0))
         if not (git and os.path.isdir(ml_core.path_in_root('.git')) and
