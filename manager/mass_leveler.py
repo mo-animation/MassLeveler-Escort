@@ -1441,8 +1441,10 @@ class App:
                                 r'C:\Program Files\Git\cmd\git.exe',
                                 os.path.expandvars(r'%LOCALAPPDATA%\Programs\Git\cmd\git.exe'))
                     if p and os.path.isfile(p)), None)
-        # safe.directory: git refuses a folder another Windows user (or a copy) owns
-        run = lambda *a: subprocess.run([git, '-c', 'safe.directory=*'] + list(a), cwd=ml_core.ROOT,
+        # safe.directory: git refuses a folder another Windows user (or a copy) owns; no fsync: some drives refuse
+        # it ("fsync error on .git/objects/..: Bad file descriptor"), Git for Windows turns fsyncObjectFiles on
+        run = lambda *a: subprocess.run([git, '-c', 'safe.directory=*', '-c', 'core.fsyncObjectFiles=false',
+                                         '-c', 'core.fsync=none'] + list(a), cwd=ml_core.ROOT,
                                         capture_output=True, text=True,
                                         creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0))
         if not (git and os.path.isdir(ml_core.path_in_root('.git')) and
