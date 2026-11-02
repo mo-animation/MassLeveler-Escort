@@ -12,6 +12,7 @@ The escort levels the group named in escort.json (written by the manager) and wa
 What it does for every character of a group (same training areas, no tracing):
   * creates the character on the character screen if it does not exist yet (model + items of its build)
   * collects the free items from the item mall storage (learned packet sequence, see the tab)
+  * a new character then uses an EXP Booster scroll of its inventory, and the next one every hour while any are left
   * picks the training area from the plan using the LOWEST level of the whole group
     (all switch together, phBot walks there with its own path finding)
   * every area has several spots; the leader moves the group to the next one when too few monsters come
@@ -46,7 +47,7 @@ import struct
 import time
 
 pName = 'MassLeveler'
-pVersion = '2.7.0-escort'
+pVersion = '2.8.0-escort'
 
 LEARN_SECONDS = 10
 IGNORE_OPCODES = {0x2002, 0x7021, 0x7074, 0x7034}   # ping, movement, attack/skill, inventory move
@@ -67,6 +68,11 @@ ZERK_RETRY = 4.0
 PASSCODE_RETRY = 12.0       # resend the registration once if the server didn't answer
 REVERSE_RETRY = 60.0        # one reverse scroll try this often (casting + loading the new place)
 COLLECT_WAIT = 25.0         # the storage collect puts the reverse scrolls in the inventory first
+# item code sent after the slot in 0x704C (MoFGW learned it on this server); one used by hand is learned too
+BOOSTER_CODES = {'Exp Booster (400%) 1 hour': '310c0d15'}
+BOOSTER_CHECK = 5.0         # seconds after using a booster: one less in the inventory = used
+BOOSTER_RETRY = 30.0
+BOOSTER_TRIES = 3
 ESCORT_ARRIVED = 300.0      # the escort is at its stage this close to the stage point
 MEMBER_NEAR = 250.0         # a member traces the escort from this close (else it reverses to the stage)
 STAGE_NEAR = 400.0          # this close to the stage point a reverse would not help: wait for the escort
@@ -124,7 +130,10 @@ zerk_uses = 0
 finish_started = 0.0
 collected_levels = set()
 collect_started = 0.0
-tracing = False              # member: our start_trace of the escort is on
+booster_due = 0.0            # when the next EXP booster is used (0 = none); kept in the status file
+booster_used = None          # (time, boosters in the inventory before) of the last use, until it is checked
+booster_tries = 0
+tracing = False             # member: our start_trace of the escort is on
 trace_started = 0.0
 trace_far_since = 0.0
 last_reverse = 0.0
@@ -637,6 +646,82 @@ def collect_levels():
     return set(int(x) for x in c.get('levels', []))
 
 
+# ---------------------------------------------------------------- EXP booster scrolls
+def booster_key():
+    return ((group or {}).get('exp_booster_name') or 'Exp Booster').lower()
+
+
+def booster_codes():
+    codes = dict(BOOSTER_CODES)
+    codes.update((_read_json(macros_path(), {}) or {}).get('item_codes', {}))
+    return codes
+
+
+def boosters():
+    """(slot, name, quantity) of every EXP booster in the inventory (slots 0-12 are the equipment)"""
+    try:
+        items = get_inventory().get('items', [])
+    except Exception:
+        return []
+    key = booster_key()
+    return [(i, it['name'], int(it.get('quantity') or 1)) for i, it in enumerate(items)
+            if i >= 13 and it and key in (it.get('name') or '').lower()]
+
+
+def booster_tick(d, now):
+    """after the first storage collect: one EXP booster, then the next every exp_booster_minutes while any are left"""
+    global booster_due, booster_used, booster_tries
+    if not booster_due or now < booster_due or d.get('dead') or not group.get('exp_booster', True):
+        return
+    found = boosters()
+    count = sum(q for _, _, q in found)
+    if booster_used:
+        if now - booster_used[0] < BOOSTER_CHECK:
+            return
+        before, booster_used = booster_used[1], None
+        if count < before:
+            every = float(group.get('exp_booster_minutes', 60))
+            booster_due, booster_tries = (now + every * 60 if every > 0 and count else 0.0), 0
+            _log('EXP booster used (%d left%s)' % (count, ', next in %d min' % every if booster_due else ''))
+            return
+        booster_tries += 1
+        if booster_tries >= BOOSTER_TRIES:
+            _log('EXP booster: the server did not take it after %d tries - stopped' % booster_tries)
+            booster_due, booster_tries = 0.0, 0
+        else:
+            booster_due = now + BOOSTER_RETRY
+        return
+    if not found:
+        _log('No EXP booster ("%s") in the inventory' % booster_key())
+        booster_due = 0.0
+        return
+    codes = booster_codes()
+    slot, name, _ = found[0]
+    code = codes.get(name) or next((c for n, c in codes.items() if booster_key() in n.lower()), None)
+    if not code:
+        _log('EXP booster: no item code for "%s" - use one by hand once' % name)
+        booster_due = 0.0
+        return
+    inject_joymax(0x704C, bytes([slot]) + bytes.fromhex(code), True)
+    booster_used = (now, count)
+    _log('Using %s (slot %d)' % (name, slot))
+
+
+def learn_item_code(data):
+    """an EXP booster used by hand: keep its item code (another booster than the known one works then too)"""
+    try:
+        items = get_inventory().get('items', [])
+        name = (items[data[0]] or {}).get('name', '') if data[0] < len(items) else ''
+    except Exception:
+        return
+    code = bytes(data[1:]).hex()
+    if name and booster_key() in name.lower() and booster_codes().get(name) != code:
+        m = _read_json(macros_path(), {}) or {}
+        m.setdefault('item_codes', {})[name] = code
+        _write_json(macros_path(), m)
+        _log('Learned the item code of ' + name)
+
+
 # ---------------------------------------------------------------- character creation
 def inject_char_list():
     inject_joymax(0x7007, b'\x02', False)
@@ -911,6 +996,8 @@ def handle_silkroad(opcode, data):
         # at the character screen, a packet with a character's name that is not create / list / delete /
         # check name / restore / select: the job selection made by hand
         record_job_packet(opcode, data)
+    if group and opcode == 0x704C and data and len(data) > 1:
+        learn_item_code(data)
     if learning_until and time.time() < learning_until and opcode not in IGNORE_OPCODES:
         hexdata = ' '.join('{:02X}'.format(b) for b in data) if data else '(empty)'
         item = '0x{:04X} | {}'.format(opcode, hexdata)
@@ -957,7 +1044,7 @@ def write_status(d):
     st = {'name': my_char, 'group': group_id, 'pid': os.getpid(), 'ts': time.time(),
           'state': state, 'message': message, 'area': current_area, 'bot_started': bot_started, 'town_wait': town_wait,
           'spot': list(current_spot) if current_spot else None,
-          'collected_levels': sorted(collected_levels), 'profile': profile_name, 'zerk_uses': zerk_uses,
+          'collected_levels': sorted(collected_levels), 'booster_due': booster_due, 'profile': profile_name, 'zerk_uses': zerk_uses,
           'attack_skills': len(applied_skills[1]['sNormal']) if applied_skills else 0,
           'build': (my_build() or {}).get('id', '')}
     try:
@@ -1444,7 +1531,7 @@ def check_group_file(now):
 
 def event_loop():
     global learning_until, last_tick, last_status, ready, last_level, bot_started, last_skill_check, current_area, \
-        collect_started, finish_wanted
+        collect_started, finish_wanted, booster_due
     while captured_pending:
         QtBind.append(gui, lstCaptured, captured_pending.pop(0))
     if learning_until and time.time() >= learning_until:
@@ -1534,6 +1621,8 @@ def event_loop():
             collected_levels.add(lvl)
             collect_started = now
             run_collect('first login' if lvl == 1 else 'level %d' % lvl)
+            if lvl == 1 and group.get('exp_booster', True):
+                booster_due = now + COLLECT_WAIT      # the collected boosters are in the inventory by then
     elif last_level is not None and lvl > last_level:
         for L in collect_levels():
             if last_level < L <= lvl and L not in collected_levels:
@@ -1559,6 +1648,7 @@ def event_loop():
             return
         current_area = ''
 
+    booster_tick(d, now)
     if now - profile_switched_at < PROFILE_SETTLE:
         return                    # phBot is loading the new skill profile
     if not d.get('dead') and now - last_skill_check >= SKILL_CHECK_SECONDS:
@@ -1597,6 +1687,7 @@ if group_id:
     if load_group():
         old_status = _read_json(base_dir() + 'status/' + my_char + '.json', {}) or {}
         collected_levels.update(old_status.get('collected_levels', []))
+        booster_due = float(old_status.get('booster_due') or 0)
         profile_name = disk_profile_name()    # plugin reloaded while phBot runs a named profile
         _set_state('waiting login', my_char)
         _log('v%s loaded for %s in group %s' % (pVersion, my_char, group_id))

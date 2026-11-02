@@ -427,6 +427,41 @@ ec.clear()
 run(e)
 check(('inject', 0x3567, b'\x09\x00') in ec, 'Auto Equip command: sends the MoAutoEquip packet')
 
+# EXP boosters: a new character uses one after the first storage collect, then the next one every hour
+b, bc, bchar, _ = load_plugin('fnuk11', ['-mlgroup=G002'])
+inv = [None] * 13 + [{'name': 'Reverse Return Scroll', 'quantity': 5}, {'name': 'Exp Booster (400%) 1 hour', 'quantity': 3}]
+b.get_inventory = lambda: {'items': inv}
+USE = ('inject', 0x704C, bytes([14]) + bytes.fromhex('310c0d15'))
+run(b)
+check(b.booster_due and USE not in bc, 'level 1: no EXP booster while the storage collect runs')
+b.booster_due = time.time() - 1
+run(b)
+check(USE in bc, 'after the collect: uses the EXP booster of slot 14 with its item code')
+inv[14] = dict(inv[14], quantity=2)
+b.booster_used = (b.booster_used[0] - 10, 3)
+bc.clear()
+run(b)
+check(USE not in bc and 3500 < b.booster_due - time.time() <= 3600, 'one less in the inventory: the next one in an hour')
+b.booster_due = time.time() - 1
+run(b)
+b.booster_used = (b.booster_used[0] - 10, b.booster_used[1])
+run(b)
+check(b.booster_tries == 1 and 0 < b.booster_due - time.time() <= 30, 'not taken by the server: tries again in 30 s')
+inv[14] = None
+b.booster_due, b.booster_used = time.time() - 1, None
+bc.clear()
+run(b)
+check(b.booster_due == 0 and not got(bc, 'inject'), 'none left: stops using boosters')
+inv.append({'name': 'Exp Booster (400%) 3 hours', 'quantity': 1})
+b.handle_silkroad(0x704C, bytes([15]) + bytes.fromhex('310c0d16'))
+check(json.load(open(SH + 'macros.json'))['item_codes'] == {'Exp Booster (400%) 3 hours': '310c0d16'},
+      'a booster used by hand: its item code is learned')
+b.group['exp_booster'] = False
+b.booster_due = time.time() - 1
+bc.clear()
+run(b)
+check(not got(bc, 'inject'), 'option off: no boosters')
+
 import shutil  # noqa: E402
 shutil.rmtree(TMP, ignore_errors=True)
 print('\n%d failure(s)' % len(failures))

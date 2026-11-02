@@ -78,6 +78,11 @@ DEFAULT_SETTINGS = {
     'learned_min_monsters': 25,  # a learned spot needs this many suitable monsters seen in its radius
     'max_restarts': 5,
     'collect_levels': [],
+    # a new character uses an EXP booster of its inventory after the first storage collect, then one every
+    # exp_booster_minutes while any are left (0 = only the first)
+    'exp_booster': True,
+    'exp_booster_name': 'Exp Booster',
+    'exp_booster_minutes': 60,
     'max_characters': 4,
     'passcode_digits': 8,
     'hide_leader_client': False,
@@ -836,6 +841,9 @@ class PhBotFiles:
             'builds': {b: builds[b] for b in used if b in builds},
             'party_buffs': party_buffs(g, builds),
             'collect': {'levels': s['collect_levels']},
+            'exp_booster': bool(s.get('exp_booster')),
+            'exp_booster_name': s.get('exp_booster_name') or 'Exp Booster',
+            'exp_booster_minutes': s.get('exp_booster_minutes', 60),
             'max_characters': s['max_characters'],
             'escort_name': s.get('escort_name', ''),    # the group traces this character through the stages
             'stages': s['escort_stages'],

@@ -314,7 +314,9 @@ class SettingsDialog:
             ttk.Separator(groups).grid(row=r, column=0, columnspan=3, sticky='ew', pady=10)
             self.fields(groups, r + 1, [('hide_client', 'Hide the members\' game client', 'check'),
                                         ('hide_leader_client', 'Hide the leader\'s game client too', 'check'),
-                                        ('minimize_bots', 'Start member bots hidden (tray)', 'check')])
+                                        ('minimize_bots', 'Start member bots hidden (tray)', 'check'),
+                                        ('exp_booster', 'New characters use EXP Booster scrolls after the storage '
+                                                        'collect (one every hour)', 'check')])
             self.escort_page(self.page('Escort'))
             self.builds_page(self.page('Builds'))
 
