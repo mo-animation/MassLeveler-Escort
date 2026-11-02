@@ -25,6 +25,12 @@ MassLeveler.bat ──► manager (desktop dashboard)
   Standard keeps its own ticks, finished marks and Auto start list (`data/standard_*.json`) and its own settings
   (`settings.json` → `standard`): groups of 8, every bot on this PC's connection (no proxies).
 
+## Finished list for Mass Runner
+
+Mass Leveler mode writes the finished characters (progress `done` or marked finished) to
+`<OneDrive>/MassLeveler/finished.json` whenever progress is saved or reloaded (settings `finished_share` = another
+path; no OneDrive folder = nothing written). Mass Runner on the other PC reads it to open only those characters.
+
 ## Standard mode: the Map tab
 
 phBot's minimap (`<phBot>/minimap/<rx>x<ry>.jpg`) with the open characters (blue = picked, green = open, red =

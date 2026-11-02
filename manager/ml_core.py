@@ -357,6 +357,14 @@ def ensure_pick_filter(config_dir, server, char, template_db):
     return 'updated'
 
 
+def finished_share_path(s):
+    """OneDrive file that tells Mass Runner (on the other PC) which characters finished leveling; '' = no OneDrive"""
+    if s.get('finished_share'):
+        return s['finished_share']
+    base = os.environ.get('OneDrive') or os.path.join(os.path.expanduser('~'), 'OneDrive')
+    return os.path.join(base, 'MassLeveler', 'finished.json') if os.path.isdir(base) else ''
+
+
 def load_settings(path=None, mode='mass'):
     path = path or path_in_root('settings.json')
     s = copy.deepcopy(DEFAULT_SETTINGS)
@@ -1099,6 +1107,7 @@ class Manager:
             for g in self.groups:       # keep live groups when reloading while running
                 if g.gid in old and old[g.gid].state in ('launching', 'running'):
                     self.groups[self.groups.index(g)] = old[g.gid]
+            self.share_finished()
             if self.standard:           # every bot on this PC's own connection
                 self.slots = [None]
                 self.log('Standard mode: %d group(s) of up to %d' % (len(self.groups), self.s['group_size']))
@@ -1506,6 +1515,25 @@ class Manager:
 
     def save_progress(self):
         write_json(self.progress_path, self.progress)
+        self.share_finished()
+
+    def share_finished(self):
+        """finished characters (their bots are closed here) -> OneDrive, read by Mass Runner on the other PC"""
+        path = '' if self.standard else finished_share_path(self.s)
+        if not path:
+            return
+        users = {m.character: m.username for g in getattr(self, 'groups', []) for m in g.all_members}
+        data = {'server': self.s['server'], 'final_level': self.s['final_level'],
+                'characters': {ch: {'state': v, 'username': users.get(ch, ''),
+                                    'level': int(self.files.status(ch).get('level') or 0)}
+                               for ch, v in sorted(self.progress.items()) if v in ('done', 'finished')}}
+        old = read_json(path, {}) or {}
+        if {k: old.get(k) for k in data} == data:
+            return
+        try:
+            write_json(path, dict(data, updated=time.time()))
+        except Exception as e:
+            self.log('finished list not written to %s: %s' % (path, e))
 
     def mark_finished(self, g):
         """the user marks a group finished: done (green) for good, never started again until Reset to pending.
