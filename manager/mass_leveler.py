@@ -268,8 +268,7 @@ class SettingsDialog:
         self.nb.pack(fill='both', expand=True, padx=8, pady=(8, 0))
         general, groups = self.page('General'), self.page('Groups')
         self.vars, self.labels, self.pages = {}, {}, {}
-        self.high = []      # (level, spot var, reverse var) of the Escort page's moves (free stages)
-        self.stage_rows = []    # (stage name, spot var, reverse var) of its other stages
+        self.high = []      # (level, spot var, reverse var) of the Escort page's moves
 
         ttk.Label(general, text='phBot').grid(row=0, column=0, sticky='w', pady=3)
         row = ttk.Frame(general)
@@ -328,44 +327,34 @@ class SettingsDialog:
         self.nb.select(min(page, self.nb.index('end') - 1))
 
     def escort_page(self, escort):
-        """a row per escort stage: its spot and reverse. The stages of settings.json keep their levels (empty spot =
-        settings.json's own); each free stage (move) starts at the level typed (empty spot = free, the user drives
-        the escort)"""
+        """ESCORT_MOVES rows in order: the level the group moves at, the spot and the reverse point. Before any
+        were saved they show the stages of settings.json"""
         s = self.app.mgr.s
-        spots = ml_core.high_spots(s)
-        for c, text in enumerate(('Stage', 'Levels', 'Spot (region,X,Y,Z)', 'Reverse scroll to')):
+        moves = list(s.get('escort_moves') or ml_core.stages_to_moves(s.get('escort_stages')))[:ml_core.ESCORT_MOVES]
+        moves += [{}] * (ml_core.ESCORT_MOVES - len(moves))
+        for c, text in enumerate(('', 'From level', 'Spot (region,X,Y,Z)', 'Reverse scroll to')):
             ttk.Label(escort, text=text, foreground=DARK['dim']).grid(row=0, column=c, sticky='w', padx=(0, 10))
-        spot_text = lambda sp: '%d,%g,%g,%g' % (sp.get('region', 0), sp['x'], sp['y'], sp.get('z', 0))
-        r, n = 1, 0
-        for st in s.get('escort_stages') or []:
-            if st.get('user_spot'):
-                n += 1
-                lv = str(st['min_level'])
-                sp = spots.get(lv) or {}
-                ttk.Label(escort, text='Move %d' % n).grid(row=r, column=0, sticky='w', pady=3, padx=(0, 10))
-                lv_v = tk.StringVar(value=lv)
-                ttk.Spinbox(escort, from_=2, to=100, textvariable=lv_v, width=5).grid(row=r, column=1, sticky='w')
-                spot_v = tk.StringVar(value=spot_text(sp) if sp else '')
-                rev_v = tk.StringVar(value='' if sp.get('reverse_auto', True) else sp.get('reverse', ''))
-                self.high.append((lv_v, spot_v, rev_v))
+        for n, m in enumerate(moves):
+            r = n + 1
+            ttk.Label(escort, text='Move %d' % r).grid(row=r, column=0, sticky='w', pady=2, padx=(0, 10))
+            lv_v = tk.StringVar(value='1' if n == 0 else str(m.get('level') or ''))
+            if n == 0:                  # every group starts with the first move
+                ttk.Label(escort, text='1').grid(row=r, column=1, sticky='w', padx=(4, 0))
             else:
-                ttk.Label(escort, text=st['name']).grid(row=r, column=0, sticky='w', pady=3, padx=(0, 10))
-                ttk.Label(escort, text='%d-%d' % (st['min_level'], st['max_level'])).grid(row=r, column=1, sticky='w')
-                spot_v = tk.StringVar(value=spot_text(st) if 'x' in st else '')
-                rev_v = tk.StringVar(value='' if st.get('reverse_auto') else st.get('reverse', ''))
-                sp = st
-                self.stage_rows.append((st['name'], spot_v, rev_v))
+                ttk.Spinbox(escort, from_=2, to=100, textvariable=lv_v, width=5).grid(row=r, column=1, sticky='w')
+            spot_v = tk.StringVar(value='%d,%g,%g,%g' % (m.get('region', 0), m['x'], m['y'], m.get('z', 0))
+                                  if 'x' in m else '')
+            rev_v = tk.StringVar(value='' if m.get('reverse_auto') else m.get('reverse', ''))
             ttk.Entry(escort, textvariable=spot_v, width=26).grid(row=r, column=2, sticky='w', padx=(0, 10))
             ttk.Entry(escort, textvariable=rev_v, width=18).grid(row=r, column=3, sticky='w')
-            if sp.get('reverse') and (st.get('user_spot') and sp.get('reverse_auto', True) or sp.get('reverse_auto')):
-                ttk.Label(escort, text='now: ' + sp['reverse'], foreground=DARK['dim']).grid(
+            if m.get('reverse') and m.get('reverse_auto'):
+                ttk.Label(escort, text='now: ' + m['reverse'], foreground=DARK['dim']).grid(
                     row=r, column=4, sticky='w', padx=6)
-            r += 1
+            self.high.append((lv_v, spot_v, rev_v))
         ttk.Label(escort, foreground=DARK['dim'], wraplength=560, text=(
             'The group moves on when its lowest member reaches the level.   Empty reverse = the nearest reverse point.'
-            '   Empty spot: the stage\'s own spot from settings.json; for a move, free: you drive the escort.'
-            if r > 1 else 'settings.json has no escort stages.')).grid(row=r, column=0, columnspan=5, sticky='w',
-                                                                       pady=(10, 0))
+            '   Empty spot = free: you drive the escort.   Empty level = the move is not used.')).grid(
+            row=ml_core.ESCORT_MOVES + 1, column=0, columnspan=5, sticky='w', pady=(10, 0))
 
     def builds_page(self, builds):
         s, mgr, app = self.app.mgr.s, self.app.mgr, self.app
@@ -549,46 +538,34 @@ class SettingsDialog:
             self.top.destroy()
             return
         self.keep_slots()
-        out['escort_high_spot'] = None      # the old single 80+ spot, now in escort_high_spots
-        out['escort_high_spots'] = {}
-        stages = self.app.mgr.s.get('escort_stages') or []
-        low = max([st['min_level'] for st in stages if not st.get('user_spot')] or [1])   # Wing Peak 64
-        levels = []
-        for n, (lv_v, _, _) in enumerate(self.high):
+        moves = []
+        for n, (lv_v, spot_v, rev_v) in enumerate(self.high):
+            text = lv_v.get().strip()
+            if not text:
+                if spot_v.get().strip():
+                    self.nb.select(2)
+                    messagebox.showwarning('Settings', 'Move %d: write the level it starts at.' % (n + 1),
+                                           parent=self.top)
+                    return
+                continue                    # not used
+            low = moves[-1]['level'] + 1 if moves else 1
             try:
-                lv = int(lv_v.get())
+                lv = int(text)
             except ValueError:
                 lv = 0
-            if not (levels[-1] if levels else low) < lv <= 100:
+            if not low <= lv <= 100:
                 self.nb.select(2)
                 messagebox.showwarning('Settings', 'Move %d: write a level from %d to 100%s.' % (
-                    n + 1, (levels[-1] if levels else low) + 1, ', above move %d' % n if n else ''), parent=self.top)
+                    n + 1, low, ', above the move before it' if moves else ''), parent=self.top)
                 return
-            levels.append(lv)
-        out['escort_free_levels'] = levels
-        for (_, spot_v, rev_v), lv in zip(self.high, levels):
-            lv = str(lv)
-            if not spot_v.get().strip():
-                continue
-            spot = self.read_spot('Level %s+ spot' % lv, spot_v.get(), rev_v.get())
-            if not spot:
-                return
-            out['escort_high_spots'][lv] = spot
-        # the other stages: kept only when they differ from settings.json's escort_stages
-        out['escort_stage_spots'] = {}
-        defaults = {st['name']: st for st in self.app.mgr.s.get('escort_stages_default') or []}
-        for name, spot_v, rev_v in self.stage_rows:
-            if not spot_v.get().strip():
-                continue                    # back to settings.json's spot and reverse
-            spot = self.read_spot(name, spot_v.get(), rev_v.get())
-            if not spot:
-                return
-            d = defaults.get(name) or {}
-            if 'x' in d and [spot['region'], spot['x'], spot['y'], spot['z'], spot['reverse'].lower()] == \
-                    [int(d.get('region', 0)), float(d['x']), float(d['y']), float(d.get('z', 0)),
-                     str(d.get('reverse', '')).lower()]:
-                continue
-            out['escort_stage_spots'][name] = spot
+            m = {'level': lv}
+            if spot_v.get().strip():        # no spot = free: the user drives the escort
+                spot = self.read_spot('Move %d' % (n + 1), spot_v.get(), rev_v.get())
+                if not spot:
+                    return
+                m.update(spot)
+            moves.append(m)
+        out['escort_moves'] = moves
         out['compositions'] = self.comps
         out['composition'] = self.comp.get()
         self.app.mgr.save_settings(out)

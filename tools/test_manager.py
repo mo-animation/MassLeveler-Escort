@@ -393,17 +393,28 @@ check([st['min_level'] for st in ml_core.with_free_levels([WING] + FREE2, None)]
 stg = ml_core.with_high_spots(ml_core.with_free_levels([WING] + FREE2, [80, 90]), {'90': WP})
 check(stg[2]['reverse'] == 'Heart Peak' and stg[1].get('free'), 'a spot is kept by its move\'s level (90)')
 check(ml_core.DEFAULT_SETTINGS['escort_free_levels'] == [80, 90], 'default moves: 80 and 90')
-NEW_WP = {'region': 23664, 'x': -4100, 'y': 300, 'z': 4200, 'reverse': 'Ong Habitat', 'reverse_auto': False}
-stg = ml_core.with_stage_spots([WING] + FREE2, {'Wing Peak': NEW_WP, 'Free': NEW_WP})
-check(stg[0]['x'] == -4100.0 and stg[0]['reverse'] == 'Ong Habitat' and stg[0]['min_level'] == 64 and
-      stg[0]['max_level'] == 79, 'a stage spot set in the dialog: new spot and reverse, same levels')
-check(stg[1].get('free') and 'x' not in stg[1], 'stage spots never touch the free stages (moves have their own)')
-check(WING['x'] == 0 and ml_core.with_stage_spots([WING], {})[0] == WING, 'nothing set: the stage as in settings.json')
-sp_path = os.path.join(TMP, 'settings_spots.json')
-json.dump(dict(settings, escort_stages=[WING] + FREE2, escort_stage_spots={'Wing Peak': NEW_WP}), open(sp_path, 'w'))
-ls = ml_core.load_settings(sp_path)
-check(ls['escort_stages'][0]['x'] == -4100.0 and ls['escort_stages_default'][0]['x'] == 0,
-      'settings.json escort_stage_spots: loaded over the stage, the dialog still knows the default')
+# the Escort page's moves: level + spot + reverse in order, they replace the stages once saved
+SPOT = {'region': 23664, 'x': -4100, 'y': 300, 'z': 4200, 'reverse': 'Heart Peak', 'reverse_auto': False}
+ONG = {'name': 'Ong', 'min_level': 1, 'max_level': 31, 'reverse': 'Ong Habitat', 'x': 1, 'y': 2, 'attack': False}
+KARRA = {'name': 'Karra', 'min_level': 52, 'max_level': 63, 'reverse': 'Fertility Temple', 'x': 3, 'y': 4, 'attack': True}
+check(ml_core.attack_level([ONG, KARRA] + FREE2) == 52, 'the group attacks from the first attack stage of settings.json (52)')
+mv = [dict(SPOT, level=5), dict(SPOT, level=40, x=10, reverse='Ong Habitat', reverse_auto=True), {'level': 60}, {},
+      dict(SPOT, level=85)]
+stg = ml_core.moves_to_stages(mv, 52)
+check([(st['min_level'], st['max_level']) for st in stg] == [(1, 39), (40, 59), (60, 84), (85, 100)],
+      'moves: each from its level to the next one\'s, the first from 1, empty rows left out')
+check([st['name'] for st in stg] == ['Move 1', 'Move 2', 'Move 3', 'Move 4'] and stg[1]['x'] == 10.0 and
+      stg[1]['reverse'] == 'Ong Habitat' and stg[1]['reverse_auto'] and stg[3]['reverse'] == 'Heart Peak',
+      'each move has its own spot and reverse')
+check(stg[2].get('free') and stg[2]['attack'] and not stg[0].get('free'), 'a move without a spot is free (the user drives)')
+check([st['attack'] for st in stg] == [False, False, True, True], 'the group attacks from level 52 on, as before')
+back = ml_core.stages_to_moves(ml_core.with_high_spots(ml_core.with_free_levels([ONG, WING] + FREE2, [80, 90]), {'90': WP}))
+check([m['level'] for m in back] == [1, 64, 80, 90] and back[1]['reverse'] == 'Heart Peak' and 'x' not in back[2]
+      and back[3]['x'] == -4303, 'the stages of settings.json shown as moves before any were saved (free = no spot)')
+sp_path = os.path.join(TMP, 'settings_moves.json')
+json.dump(dict(settings, escort_stages=[ONG, KARRA] + FREE2, escort_moves=mv), open(sp_path, 'w'))
+check([st['min_level'] for st in ml_core.load_settings(sp_path)['escort_stages']] == [1, 40, 60, 85],
+      'saved moves replace the stages of settings.json when loaded')
 
 # Standard mode: a plain phBot manager (no -mlgroup, phBot's own status, its own ticks / finished / Auto start)
 std = dict(settings, standard={'group_size': 2, 'launch_delay_seconds': 0.3, 'disconnect_restart_seconds': 0.5,
