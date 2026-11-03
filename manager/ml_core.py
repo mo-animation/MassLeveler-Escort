@@ -1565,7 +1565,11 @@ class Manager:
     def share_finished(self):
         """finished characters (their bots are closed here) -> OneDrive, read by Mass Runner on the other PC"""
         path = '' if self.standard else finished_share_path(self.s)
-        if not path:
+        # only the program's own settings.json: tools/test_manager.py once wrote its test list (final_level 8,
+        # no characters) to the real OneDrive file and Mass Runner had nothing to play
+        own = os.path.normcase(os.path.abspath(self.settings_path or path_in_root('settings.json'))) == \
+            os.path.normcase(os.path.abspath(path_in_root('settings.json')))
+        if not path or not own:
             return
         users = {m.character: m.username for g in getattr(self, 'groups', []) for m in g.all_members}
         data = {'server': self.s['server'], 'final_level': self.s['final_level'],
