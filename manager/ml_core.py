@@ -111,6 +111,8 @@ DEFAULT_SETTINGS = {
     'escort_high_spots': {},       # settings dialog: {'80': {region, x, y, z, reverse, reverse_auto}, '95': ...}
                                     # for the free stages by min_level (no spot = free, the user drives the escort)
     'escort_free_levels': [80, 90],  # settings dialog: the level each free stage starts at, in order
+    'escort_stage_spots': {},       # settings dialog: {stage name: {region, x, y, z, reverse, reverse_auto}} for
+                                    # the other stages, only the ones changed from escort_stages
     'escort_wait_seconds': 10,
     'escort_gather_distance': 60,   # a member this close to the escort has arrived
     'escort_solo_level': 5,         # below it nobody can invite to a party: every member levels alone (plan areas)
@@ -189,6 +191,18 @@ def with_high_spots(stages, spots):
             st.update(name=sp.get('name') or 'Level %d+ spot' % st['min_level'], reverse=sp['reverse'],
                       region=int(sp.get('region', 0)), x=float(sp['x']), y=float(sp['y']),
                       z=float(sp.get('z', 0)), attack=True)
+    return out
+
+
+def with_stage_spots(stages, spots):
+    """each stage that isn't free gets the spot and reverse set for its name in the settings dialog"""
+    out = [dict(st) for st in stages or []]
+    for st in out:
+        sp = (spots or {}).get(st['name'])
+        if st.get('free') or not sp or not sp.get('reverse'):
+            continue
+        st.update(reverse=sp['reverse'], region=int(sp.get('region', 0)), x=float(sp['x']), y=float(sp['y']),
+                  z=float(sp.get('z', 0)), reverse_auto=bool(sp.get('reverse_auto')))
     return out
 
 
@@ -376,8 +390,9 @@ def load_settings(path=None, mode='mass'):
     # the folder is copied between PCs with phBot in different places: the first phBot folder that exists
     if not os.path.isdir(s['phbot_dir']):
         s['phbot_dir'] = next((p for p in s.get('phbot_dirs') or [] if os.path.isdir(p)), s['phbot_dir'])
-    s['escort_stages'] = with_high_spots(with_free_levels(s['escort_stages'], s.get('escort_free_levels')),
-                                         high_spots(s))
+    s['escort_stages_default'] = [dict(st) for st in s['escort_stages'] or []]    # the dialog's empty spot
+    s['escort_stages'] = with_high_spots(with_free_levels(with_stage_spots(s['escort_stages'], s.get('escort_stage_spots')),
+                                                          s.get('escort_free_levels')), high_spots(s))
     for st in s['escort_stages']:       # a name typed in another case is spelled the game's way
         if st.get('reverse'):
             st['reverse'] = exact_reverse(s['phbot_dir'], st['reverse']) or st['reverse']

@@ -1,4 +1,4 @@
-﻿# -*- coding: utf-8 -*-
+# -*- coding: utf-8 -*-
 """MassLeveler Escort - group auto leveling for phBot with an escort (by Mosap).
 
 Started by the MassLeveler manager with the extra argument  -mlgroup=<GROUP_ID>.
@@ -47,7 +47,7 @@ import struct
 import time
 
 pName = 'MassLeveler'
-pVersion = '2.8.0-escort'
+pVersion = '2.8.1-escort'
 
 LEARN_SECONDS = 10
 IGNORE_OPCODES = {0x2002, 0x7021, 0x7074, 0x7034}   # ping, movement, attack/skill, inventory move
@@ -1435,9 +1435,11 @@ def escort_tick(d, now, cmd):
         current_area = stage['name']
         _set_state('leveling', 'free: group %s lowest %d traces the escort' % (target.get('group'), gmin))
         return
-    key = (target.get('group'), stage['name'])
+    # a spot or reverse changed in the manager's settings: the escort goes to the new place too
+    key = (target.get('group'), stage['name'], stage.get('reverse'), stage.get('x'), stage.get('y'))
     if esc['key'] != key:
-        _log('Escort: group %s, lowest level %d -> %s' % (target.get('group') or 'none', gmin, stage['name']))
+        _log('Escort: group %s, lowest level %d -> %s (%s, %s, reverse %s)' % (
+            target.get('group') or 'none', gmin, stage['name'], stage.get('x'), stage.get('y'), stage.get('reverse')))
         was_free = esc['phase'] == 'free'     # the user may have started its bot by hand meanwhile
         esc.update(key=key, phase='travel', gather_since=0.0)
         if bot_started or was_free:

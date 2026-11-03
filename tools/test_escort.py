@@ -377,6 +377,32 @@ e.esc['gather_since'] = time.time() - 11
 run(e)
 check(e.esc['phase'] == 'hunt', 'back at Karra with everyone: hunts')
 
+# Karra's spot changed in the manager's settings while hunting there: the escort goes to the new place
+e.group['stages'] = [dict(st, x=KARRA['x'] + 500, reverse='Ancient Remains') if st['name'] == KARRA['name'] else st
+                     for st in STAGES]
+e.last_reverse = 0
+ec.clear()
+run(e)
+check(e.esc['phase'] == 'travel' and got(ec, 'stop_bot') and got(ec, 'reverse') == [('reverse', 3, 'Ancient Remains')],
+      'a changed stage spot: the escort stops hunting and reverses to the new reverse point')
+echar.update(x=KARRA['x'] + 500)
+status('fnuk17', 52, KARRA['x'] + 500, KARRA['y'])
+status('fnuk18', 55, KARRA['x'] + 500, KARRA['y'])
+run(e)
+e.esc['gather_since'] = time.time() - 11
+ec.clear()
+run(e)
+check(e.esc['phase'] == 'hunt' and [c[1][1] for c in got(ec, 'pos')] == [KARRA['x'] + 500.0],
+      'it hunts at the new spot once the group is there')
+e.group['stages'] = STAGES
+echar.update(x=KARRA['x'])
+status('fnuk17', 52, KARRA['x'], KARRA['y'])
+status('fnuk18', 55, KARRA['x'], KARRA['y'])
+run(e)
+e.esc['gather_since'] = time.time() - 11
+run(e)
+check(e.esc['phase'] == 'hunt', 'spot set back: hunts at Karra again')
+
 status('fnuk17', 80, KARRA['x'], KARRA['y'])
 status('fnuk18', 82, KARRA['x'], KARRA['y'])
 e.last_reverse = 0

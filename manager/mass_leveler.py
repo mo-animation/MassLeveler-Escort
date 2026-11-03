@@ -268,7 +268,8 @@ class SettingsDialog:
         self.nb.pack(fill='both', expand=True, padx=8, pady=(8, 0))
         general, groups = self.page('General'), self.page('Groups')
         self.vars, self.labels, self.pages = {}, {}, {}
-        self.high = []      # (level, spot var, reverse var) of the Escort page
+        self.high = []      # (level, spot var, reverse var) of the Escort page's moves (free stages)
+        self.stage_rows = []    # (stage name, spot var, reverse var) of its other stages
 
         ttk.Label(general, text='phBot').grid(row=0, column=0, sticky='w', pady=3)
         row = ttk.Frame(general)
@@ -327,35 +328,44 @@ class SettingsDialog:
         self.nb.select(min(page, self.nb.index('end') - 1))
 
     def escort_page(self, escort):
-        """one move per free stage of settings.json: the level it starts at (80, 90...) and its spot; empty spot =
-        free, the user drives the escort"""
+        """a row per escort stage: its spot and reverse. The stages of settings.json keep their levels (empty spot =
+        settings.json's own); each free stage (move) starts at the level typed (empty spot = free, the user drives
+        the escort)"""
         s = self.app.mgr.s
         spots = ml_core.high_spots(s)
-        r = 0
-        for n, lv in enumerate([str(st['min_level']) for st in s.get('escort_stages') or [] if st.get('user_spot')]):
-            if r:
-                ttk.Separator(escort).grid(row=r, column=0, columnspan=3, sticky='ew', pady=8)
-                r += 1
-            sp = spots.get(lv) or {}
-            ttk.Label(escort, text='Move %d at level' % (n + 1)).grid(row=r, column=0, sticky='w', pady=3, padx=(0, 12))
-            lv_v = tk.StringVar(value=lv)
-            ttk.Spinbox(escort, from_=2, to=100, textvariable=lv_v, width=6).grid(row=r, column=1, sticky='w')
-            ttk.Label(escort, text='Spot (region,X,Y,Z)').grid(row=r + 1, column=0, sticky='w', pady=3)
-            spot_v = tk.StringVar(value='%d,%g,%g,%g' % (sp.get('region', 0), sp['x'], sp['y'], sp.get('z', 0))
-                                  if sp else '')
-            ttk.Entry(escort, textvariable=spot_v, width=30).grid(row=r + 1, column=1, sticky='w')
-            ttk.Label(escort, text='Reverse scroll to').grid(row=r + 2, column=0, sticky='w', pady=3)
-            rev_v = tk.StringVar(value='' if sp.get('reverse_auto', True) else sp.get('reverse', ''))
-            ttk.Entry(escort, textvariable=rev_v, width=30).grid(row=r + 2, column=1, sticky='w')
-            if sp.get('reverse'):
+        for c, text in enumerate(('Stage', 'Levels', 'Spot (region,X,Y,Z)', 'Reverse scroll to')):
+            ttk.Label(escort, text=text, foreground=DARK['dim']).grid(row=0, column=c, sticky='w', padx=(0, 10))
+        spot_text = lambda sp: '%d,%g,%g,%g' % (sp.get('region', 0), sp['x'], sp['y'], sp.get('z', 0))
+        r, n = 1, 0
+        for st in s.get('escort_stages') or []:
+            if st.get('user_spot'):
+                n += 1
+                lv = str(st['min_level'])
+                sp = spots.get(lv) or {}
+                ttk.Label(escort, text='Move %d' % n).grid(row=r, column=0, sticky='w', pady=3, padx=(0, 10))
+                lv_v = tk.StringVar(value=lv)
+                ttk.Spinbox(escort, from_=2, to=100, textvariable=lv_v, width=5).grid(row=r, column=1, sticky='w')
+                spot_v = tk.StringVar(value=spot_text(sp) if sp else '')
+                rev_v = tk.StringVar(value='' if sp.get('reverse_auto', True) else sp.get('reverse', ''))
+                self.high.append((lv_v, spot_v, rev_v))
+            else:
+                ttk.Label(escort, text=st['name']).grid(row=r, column=0, sticky='w', pady=3, padx=(0, 10))
+                ttk.Label(escort, text='%d-%d' % (st['min_level'], st['max_level'])).grid(row=r, column=1, sticky='w')
+                spot_v = tk.StringVar(value=spot_text(st) if 'x' in st else '')
+                rev_v = tk.StringVar(value='' if st.get('reverse_auto') else st.get('reverse', ''))
+                sp = st
+                self.stage_rows.append((st['name'], spot_v, rev_v))
+            ttk.Entry(escort, textvariable=spot_v, width=26).grid(row=r, column=2, sticky='w', padx=(0, 10))
+            ttk.Entry(escort, textvariable=rev_v, width=18).grid(row=r, column=3, sticky='w')
+            if sp.get('reverse') and (st.get('user_spot') and sp.get('reverse_auto', True) or sp.get('reverse_auto')):
                 ttk.Label(escort, text='now: ' + sp['reverse'], foreground=DARK['dim']).grid(
-                    row=r + 2, column=2, sticky='w', padx=6)
-            self.high.append((lv_v, spot_v, rev_v))
-            r += 3
-        ttk.Label(escort, foreground=DARK['dim'], wraplength=460, text=(
-            'The group moves when its lowest member reaches the level.   Empty spot = free: you drive the escort.   '
-            'Empty reverse = the nearest reverse point.' if self.high
-            else 'settings.json has no free escort stage.')).grid(row=r, column=0, columnspan=3, sticky='w', pady=(10, 0))
+                    row=r, column=4, sticky='w', padx=6)
+            r += 1
+        ttk.Label(escort, foreground=DARK['dim'], wraplength=560, text=(
+            'The group moves on when its lowest member reaches the level.   Empty reverse = the nearest reverse point.'
+            '   Empty spot: the stage\'s own spot from settings.json; for a move, free: you drive the escort.'
+            if r > 1 else 'settings.json has no escort stages.')).grid(row=r, column=0, columnspan=5, sticky='w',
+                                                                       pady=(10, 0))
 
     def builds_page(self, builds):
         s, mgr, app = self.app.mgr.s, self.app.mgr, self.app
@@ -489,6 +499,35 @@ class SettingsDialog:
             self.comp.set(sorted(self.comps)[0])
             self.show_slots()
 
+    def read_spot(self, title, text, rev):
+        """{region, x, y, z, reverse, reverse_auto} of an Escort page row; None after telling what is wrong.
+        Empty reverse = the nearest reverse point of phBot's game data"""
+        self.nb.select(2)               # the Escort page, for the messages below
+        try:
+            region, x, y, z = App.parse_coords(text.strip())
+        except ValueError as e:
+            messagebox.showwarning(title, str(e), parent=self.top)
+            return None
+        spot = {'region': region, 'x': x, 'y': y, 'z': z}
+        rev = rev.strip()
+        if rev:
+            exact = ml_core.exact_reverse(self.app.mgr.s['phbot_dir'], rev)
+            if not exact:
+                messagebox.showwarning(title, '"%s" is not in the game\'s reverse list.\nType it the way the '
+                                       'reverse scroll window shows it, or leave it empty for the nearest one.'
+                                       % rev, parent=self.top)
+                return None
+            spot.update(reverse=exact, reverse_auto=False)
+        else:
+            found = ml_core.nearest_reverse(self.app.mgr.s['phbot_dir'], spot)
+            if not found:
+                messagebox.showwarning(title, 'No reverse point found near it in phBot\'s game data.\n'
+                                       'Type the reverse point name yourself.', parent=self.top)
+                return None
+            spot.update(reverse=found[0], reverse_auto=True)
+            messagebox.showinfo(title, 'Nearest reverse point: %s (about %d away)' % found, parent=self.top)
+        return spot
+
     def save(self):
         if any(g.state in ('launching', 'running') for g in self.app.mgr.groups):
             if not messagebox.askyesno('MassLeveler', 'Groups are running. The new settings apply to groups started '
@@ -529,35 +568,27 @@ class SettingsDialog:
         out['escort_free_levels'] = levels
         for (_, spot_v, rev_v), lv in zip(self.high, levels):
             lv = str(lv)
-            text = spot_v.get().strip()
-            if not text:
+            if not spot_v.get().strip():
                 continue
-            title = 'Level %s+ spot' % lv
-            self.nb.select(2)               # the Escort page, for the messages below
-            try:
-                region, x, y, z = App.parse_coords(text)
-            except ValueError as e:
-                messagebox.showwarning(title, str(e), parent=self.top)
+            spot = self.read_spot('Level %s+ spot' % lv, spot_v.get(), rev_v.get())
+            if not spot:
                 return
-            spot = {'region': region, 'x': x, 'y': y, 'z': z}
-            rev = rev_v.get().strip()
-            if rev:
-                exact = ml_core.exact_reverse(self.app.mgr.s['phbot_dir'], rev)
-                if not exact:
-                    messagebox.showwarning(title, '"%s" is not in the game\'s reverse list.\nType it the way the '
-                                           'reverse scroll window shows it, or leave it empty for the nearest one.'
-                                           % rev, parent=self.top)
-                    return
-                spot.update(reverse=exact, reverse_auto=False)
-            else:
-                found = ml_core.nearest_reverse(self.app.mgr.s['phbot_dir'], spot)
-                if not found:
-                    messagebox.showwarning(title, 'No reverse point found near it in phBot\'s game data.\n'
-                                           'Type the reverse point name yourself.', parent=self.top)
-                    return
-                spot.update(reverse=found[0], reverse_auto=True)
-                messagebox.showinfo(title, 'Nearest reverse point: %s (about %d away)' % found, parent=self.top)
             out['escort_high_spots'][lv] = spot
+        # the other stages: kept only when they differ from settings.json's escort_stages
+        out['escort_stage_spots'] = {}
+        defaults = {st['name']: st for st in self.app.mgr.s.get('escort_stages_default') or []}
+        for name, spot_v, rev_v in self.stage_rows:
+            if not spot_v.get().strip():
+                continue                    # back to settings.json's spot and reverse
+            spot = self.read_spot(name, spot_v.get(), rev_v.get())
+            if not spot:
+                return
+            d = defaults.get(name) or {}
+            if 'x' in d and [spot['region'], spot['x'], spot['y'], spot['z'], spot['reverse'].lower()] == \
+                    [int(d.get('region', 0)), float(d['x']), float(d['y']), float(d.get('z', 0)),
+                     str(d.get('reverse', '')).lower()]:
+                continue
+            out['escort_stage_spots'][name] = spot
         out['compositions'] = self.comps
         out['composition'] = self.comp.get()
         self.app.mgr.save_settings(out)

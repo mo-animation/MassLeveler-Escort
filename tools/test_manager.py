@@ -393,6 +393,17 @@ check([st['min_level'] for st in ml_core.with_free_levels([WING] + FREE2, None)]
 stg = ml_core.with_high_spots(ml_core.with_free_levels([WING] + FREE2, [80, 90]), {'90': WP})
 check(stg[2]['reverse'] == 'Heart Peak' and stg[1].get('free'), 'a spot is kept by its move\'s level (90)')
 check(ml_core.DEFAULT_SETTINGS['escort_free_levels'] == [80, 90], 'default moves: 80 and 90')
+NEW_WP = {'region': 23664, 'x': -4100, 'y': 300, 'z': 4200, 'reverse': 'Ong Habitat', 'reverse_auto': False}
+stg = ml_core.with_stage_spots([WING] + FREE2, {'Wing Peak': NEW_WP, 'Free': NEW_WP})
+check(stg[0]['x'] == -4100.0 and stg[0]['reverse'] == 'Ong Habitat' and stg[0]['min_level'] == 64 and
+      stg[0]['max_level'] == 79, 'a stage spot set in the dialog: new spot and reverse, same levels')
+check(stg[1].get('free') and 'x' not in stg[1], 'stage spots never touch the free stages (moves have their own)')
+check(WING['x'] == 0 and ml_core.with_stage_spots([WING], {})[0] == WING, 'nothing set: the stage as in settings.json')
+sp_path = os.path.join(TMP, 'settings_spots.json')
+json.dump(dict(settings, escort_stages=[WING] + FREE2, escort_stage_spots={'Wing Peak': NEW_WP}), open(sp_path, 'w'))
+ls = ml_core.load_settings(sp_path)
+check(ls['escort_stages'][0]['x'] == -4100.0 and ls['escort_stages_default'][0]['x'] == 0,
+      'settings.json escort_stage_spots: loaded over the stage, the dialog still knows the default')
 
 # Standard mode: a plain phBot manager (no -mlgroup, phBot's own status, its own ticks / finished / Auto start)
 std = dict(settings, standard={'group_size': 2, 'launch_delay_seconds': 0.3, 'disconnect_restart_seconds': 0.5,
