@@ -47,7 +47,7 @@ import struct
 import time
 
 pName = 'MassLeveler'
-pVersion = '2.9.0-escort'
+pVersion = '2.9.1-escort'
 
 LEARN_SECONDS = 10
 IGNORE_OPCODES = {0x2002, 0x7021, 0x7074, 0x7034}   # ping, movement, attack/skill, inventory move
@@ -79,6 +79,7 @@ MEMBER_NEAR = 250.0         # a member traces the escort from this close (else i
 STAGE_NEAR = 400.0          # this close to the stage point a reverse would not help: wait for the escort
 TRACE_LOST = 60.0           # tracing but this far from the escort for TRACE_RETRY seconds: start the trace again
 TRACE_RETRY = 20.0
+TRACE_FAIL_WAIT = 5.0       # phBot refused the trace: try again after this
 STATUS_FRESH = 30.0         # an escort status older than this: the escort is not in game
 MEMBER_RES_WAIT = 120.0     # dead member not resurrected (by the escort or the party) this long: town
 ESCORT_RES_WAIT = 2.0       # dead escort: town after this, then reverse straight to its death point
@@ -138,6 +139,7 @@ booster_missing = False      # "no booster in the inventory" was logged
 tracing = False             # member: our start_trace of the escort is on
 trace_started = 0.0
 trace_far_since = 0.0
+trace_fails = 0              # start_trace refused this many times in a row
 last_reverse = 0.0
 dead_since = 0.0
 death_back = False           # member: respawned in town at once, reverse to the death point next
@@ -659,15 +661,19 @@ def booster_codes():
     return codes
 
 
+def is_booster(name):
+    """the name starts with the booster's: "Skill Exp Booster" (SP) is another item"""
+    return str(name or '').strip().lower().startswith(booster_key())
+
+
 def boosters():
     """(slot, name, quantity) of every EXP booster in the inventory (slots 0-12 are the equipment)"""
     try:
         items = get_inventory().get('items', [])
     except Exception:
         return []
-    key = booster_key()
     return [(i, it['name'], int(it.get('quantity') or 1)) for i, it in enumerate(items)
-            if i >= 13 and it and key in (it.get('name') or '').lower()]
+            if i >= 13 and it and is_booster(it.get('name'))]
 
 
 def booster_active():
@@ -676,8 +682,7 @@ def booster_active():
         buffs = get_active_skills() or {}
     except Exception:
         return False
-    key = booster_key()
-    return any(key in str(v.get('name', '') if isinstance(v, dict) else v).lower() for v in buffs.values())
+    return any(is_booster(v.get('name', '') if isinstance(v, dict) else v) for v in buffs.values())
 
 
 def booster_tick(d, now):
@@ -716,12 +721,13 @@ def booster_tick(d, now):
         return
     booster_missing = False
     codes = booster_codes()
-    slot, name, _ = found[0]
-    code = codes.get(name) or next((c for n, c in codes.items() if booster_key() in n.lower()), None)
-    if not code:
-        _log('EXP booster: no item code for "%s" - use one by hand once' % name)
+    known = [(s, n) for s, n, _ in found if codes.get(n)]   # every booster has its own item code
+    if not known:
+        _log('EXP booster: no item code for %s - use one by hand once' % ', '.join(sorted(set(n for _, n, _ in found))))
         booster_due = now + BOOSTER_IDLE
         return
+    slot, name = known[0]
+    code = codes[name]
     inject_joymax(0x704C, bytes([slot]) + bytes.fromhex(code), True)
     booster_used = (now, count)
     _log('Using %s (slot %d)' % (name, slot))
@@ -735,7 +741,7 @@ def learn_item_code(data):
     except Exception:
         return
     code = bytes(data[1:]).hex()
-    if name and booster_key() in name.lower() and booster_codes().get(name) != code:
+    if name and is_booster(name) and booster_codes().get(name) != code:
         m = _read_json(macros_path(), {}) or {}
         m.setdefault('item_codes', {})[name] = code
         _write_json(macros_path(), m)
@@ -1265,7 +1271,7 @@ def stop_tracing():
 def member_escort_tick(d, lvl, gmin, now, cmd):
     """a group member: reverse to the stage, then bot-trace the escort (it waits for everyone there)"""
     global tracing, trace_started, trace_far_since, dead_since, current_area, solo_active, bot_started, current_spot, \
-        death_back, last_reverse, last_return
+        death_back, last_reverse, last_return, trace_fails
     stage = stage_for(gmin)
     if not stage:
         _set_state('error', 'no escort stages in the group file')
@@ -1338,16 +1344,27 @@ def member_escort_tick(d, lvl, gmin, now, cmd):
     if escort and not escort.get('dead') and (free or esc_waits or dist(me, escort) < MEMBER_NEAR):
         far = dist(me, escort) > TRACE_LOST
         trace_far_since = (trace_far_since or now) if far else 0.0
-        if cmd == 'start' or not tracing or (trace_far_since and now - trace_far_since > TRACE_RETRY):
-            stop_tracing()
+        if (cmd == 'start' or not tracing or (trace_far_since and now - trace_far_since > TRACE_RETRY)) and \
+                now - trace_started >= (TRACE_FAIL_WAIT if trace_fails else 0):
+            # phBot refuses a trace while its bot runs or another trace is on (even one we did not start)
+            tracing = False
+            for fn in (stop_bot, stop_trace):
+                try:
+                    fn()
+                except Exception:
+                    pass
+            bot_started = False
             try:
                 tracing = bool(start_trace(group['escort_name']))
             except Exception as e:
-                tracing = False
                 _log('start_trace failed: %s' % e)
             trace_started, trace_far_since = now, 0.0
-            _log('Trace %s %s (%s, attack %s)' % (group['escort_name'], 'started' if tracing else 'FAILED',
-                                                 stage['name'], 'on' if stage.get('attack') else 'off'))
+            trace_fails = 0 if tracing else trace_fails + 1
+            if tracing or trace_fails == 1 or trace_fails % 20 == 0:
+                _log('Trace %s %s (%s, attack %s)' % (
+                    group['escort_name'], 'started' if tracing else 'FAILED%s' % (
+                        ' %d times in a row' % trace_fails if trace_fails > 1 else ''),
+                    stage['name'], 'on' if stage.get('attack') else 'off'))
         _set_state('leveling', 'lv %d, group lowest %d - tracing %s at %s' % (lvl, gmin, group['escort_name'], stage['name']))
         return
     stop_tracing()

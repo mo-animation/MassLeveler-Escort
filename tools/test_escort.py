@@ -142,8 +142,25 @@ mchar.update(x=ONG['x'] - 80, y=ONG['y'] + 50)             # landed at the rever
 run(m)
 check('waiting for the escort' in m.message and not got(mc, 'trace'), 'at Ong without the escort in game: waits, no reverse')
 status('wiz01', 100, ONG['x'] - 70, ONG['y'] + 45)
+# phBot refuses the trace (its bot runs, or another trace is on): stop both first, try again after 5 s, log once
+m.start_trace = lambda n: mc.append(('trace', n)) and False
 run(m)
-check(got(mc, 'trace') == [('trace', 'wiz01')] and m.tracing, 'escort near: bot-traces it')
+check(got(mc, 'trace') == [('trace', 'wiz01')] and got(mc, 'stop_bot') and not m.tracing and m.trace_fails == 1,
+      'trace refused: bot stopped before it, not tracing')
+mc.clear()
+run(m, 3)
+check(not got(mc, 'trace'), 'trace refused: no new try for 5 s (not every tick)')
+for _ in range(3):
+    m.trace_started -= 6
+    run(m)
+check(len(got(mc, 'trace')) == 3 and sum('FAILED' in c[1] for c in got(mc, 'log')) == 0,
+      'tried again every 5 s, the failure is not written again each time')
+m.start_trace = lambda n: mc.append(('trace', n)) or True
+m.trace_started -= 6
+mc.clear()
+run(m)
+check(got(mc, 'trace') == [('trace', 'wiz01')] and m.tracing and m.trace_fails == 0 and
+      any('Trace wiz01 started' in c[1] for c in got(mc, 'log')), 'phBot takes the trace again: tracing')
 mc.clear()
 run(m, 3)
 check(not got(mc, 'trace'), 'keeps tracing (no restart while close)')
@@ -494,6 +511,21 @@ b.booster_due = time.time() - 1
 bc.clear()
 run(b)
 check(USE in bc, 'boosters bought / collected later: used again at once')
+inv[14] = {'name': 'Skill Exp Booster (100%) 1 hour', 'quantity': 4}
+b.booster_due, b.booster_used = time.time() - 1, None
+bc.clear()
+run(b)
+check(not got(bc, 'inject'), 'a Skill Exp Booster (SP) is not an EXP booster: not used')
+buffs[1] = {'name': 'Skill Exp Booster (100%)'}
+check(not b.booster_active(), 'its buff does not count as an EXP booster on')
+buffs.clear()
+inv.append({'name': 'Exp Booster (400%) 3 hours', 'quantity': 1})
+b.booster_due = time.time() - 1
+bc.clear()
+run(b)
+check(not got(bc, 'inject') and any('no item code for Exp Booster (400%) 3 hours' in c[1] for c in got(bc, 'log')),
+      'an EXP booster without a learned code: not sent with another one\'s code')
+inv.pop()
 inv[14] = None
 b.booster_used = None
 # a higher level character (not new) uses them too
