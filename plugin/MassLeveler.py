@@ -12,7 +12,7 @@ The escort levels the group named in escort.json (written by the manager) and wa
 What it does for every character of a group (same training areas, no tracing):
   * creates the character on the character screen if it does not exist yet (model + items of its build)
   * collects the free items from the item mall storage (learned packet sequence, see the tab)
-  * a new character then uses an EXP Booster scroll of its inventory, and the next one every hour while any are left
+  * keeps an EXP Booster scroll of its inventory on: a new one whenever none is active (at any level)
   * picks the training area from the plan using the LOWEST level of the whole group
     (all switch together, phBot walks there with its own path finding)
   * every area has several spots; the leader moves the group to the next one when too few monsters come
@@ -47,7 +47,7 @@ import struct
 import time
 
 pName = 'MassLeveler'
-pVersion = '2.8.1-escort'
+pVersion = '2.9.0-escort'
 
 LEARN_SECONDS = 10
 IGNORE_OPCODES = {0x2002, 0x7021, 0x7074, 0x7034}   # ping, movement, attack/skill, inventory move
@@ -73,6 +73,7 @@ BOOSTER_CODES = {'Exp Booster (400%) 1 hour': '310c0d15'}
 BOOSTER_CHECK = 5.0         # seconds after using a booster: one less in the inventory = used
 BOOSTER_RETRY = 30.0
 BOOSTER_TRIES = 3
+BOOSTER_IDLE = 300.0        # no booster in the inventory (or not taken): look again this often
 ESCORT_ARRIVED = 300.0      # the escort is at its stage this close to the stage point
 MEMBER_NEAR = 250.0         # a member traces the escort from this close (else it reverses to the stage)
 STAGE_NEAR = 400.0          # this close to the stage point a reverse would not help: wait for the escort
@@ -130,9 +131,10 @@ zerk_uses = 0
 finish_started = 0.0
 collected_levels = set()
 collect_started = 0.0
-booster_due = 0.0            # when the next EXP booster is used (0 = none); kept in the status file
+booster_due = 0.0            # not before this the next EXP booster (0 = now); kept in the status file
 booster_used = None          # (time, boosters in the inventory before) of the last use, until it is checked
 booster_tries = 0
+booster_missing = False      # "no booster in the inventory" was logged
 tracing = False             # member: our start_trace of the escort is on
 trace_started = 0.0
 trace_far_since = 0.0
@@ -668,10 +670,22 @@ def boosters():
             if i >= 13 and it and key in (it.get('name') or '').lower()]
 
 
+def booster_active():
+    """an EXP booster buff is on (phBot's active skills, by name)"""
+    try:
+        buffs = get_active_skills() or {}
+    except Exception:
+        return False
+    key = booster_key()
+    return any(key in str(v.get('name', '') if isinstance(v, dict) else v).lower() for v in buffs.values())
+
+
 def booster_tick(d, now):
-    """after the first storage collect: one EXP booster, then the next every exp_booster_minutes while any are left"""
-    global booster_due, booster_used, booster_tries
-    if not booster_due or now < booster_due or d.get('dead') or not group.get('exp_booster', True):
+    """keeps an EXP booster on: a new one whenever none is active (no booster buff, and the last one was used
+    exp_booster_minutes ago), at any level. None in the inventory or not taken: looks again every BOOSTER_IDLE"""
+    global booster_due, booster_used, booster_tries, booster_missing
+    if now < booster_due or d.get('dead') or not group.get('exp_booster', True) or group.get('escort') or \
+            now - collect_started < COLLECT_WAIT:
         return
     found = boosters()
     count = sum(q for _, _, q in found)
@@ -680,27 +694,33 @@ def booster_tick(d, now):
             return
         before, booster_used = booster_used[1], None
         if count < before:
-            every = float(group.get('exp_booster_minutes', 60))
-            booster_due, booster_tries = (now + every * 60 if every > 0 and count else 0.0), 0
-            _log('EXP booster used (%d left%s)' % (count, ', next in %d min' % every if booster_due else ''))
+            every = max(float(group.get('exp_booster_minutes', 60)), 1.0)
+            booster_due, booster_tries = now + every * 60, 0
+            _log('EXP booster used (%d left), the next one in %d min' % (count, every))
             return
         booster_tries += 1
         if booster_tries >= BOOSTER_TRIES:
-            _log('EXP booster: the server did not take it after %d tries - stopped' % booster_tries)
-            booster_due, booster_tries = 0.0, 0
+            _log('EXP booster: the server did not take it after %d tries - again in %d min' % (
+                booster_tries, BOOSTER_IDLE // 60))
+            booster_due, booster_tries = now + BOOSTER_IDLE, 0
         else:
             booster_due = now + BOOSTER_RETRY
         return
-    if not found:
-        _log('No EXP booster ("%s") in the inventory' % booster_key())
-        booster_due = 0.0
+    if booster_active():
+        booster_due = now + BOOSTER_RETRY     # one is still on (used by hand, or before a restart)
         return
+    if not found:
+        if not booster_missing:
+            _log('No EXP booster ("%s") in the inventory - looking again every %d min' % (booster_key(), BOOSTER_IDLE // 60))
+        booster_missing, booster_due = True, now + BOOSTER_IDLE
+        return
+    booster_missing = False
     codes = booster_codes()
     slot, name, _ = found[0]
     code = codes.get(name) or next((c for n, c in codes.items() if booster_key() in n.lower()), None)
     if not code:
         _log('EXP booster: no item code for "%s" - use one by hand once' % name)
-        booster_due = 0.0
+        booster_due = now + BOOSTER_IDLE
         return
     inject_joymax(0x704C, bytes([slot]) + bytes.fromhex(code), True)
     booster_used = (now, count)

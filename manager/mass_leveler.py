@@ -315,8 +315,8 @@ class SettingsDialog:
             self.fields(groups, r + 1, [('hide_client', 'Hide the members\' game client', 'check'),
                                         ('hide_leader_client', 'Hide the leader\'s game client too', 'check'),
                                         ('minimize_bots', 'Start member bots hidden (tray)', 'check'),
-                                        ('exp_booster', 'New characters use EXP Booster scrolls after the storage '
-                                                        'collect (one every hour)', 'check')])
+                                        ('exp_booster', 'Keep an EXP Booster scroll on (a new one whenever none '
+                                                        'is active)', 'check')])
             self.escort_page(self.page('Escort'))
             self.builds_page(self.page('Builds'))
 

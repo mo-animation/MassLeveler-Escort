@@ -453,7 +453,7 @@ ec.clear()
 run(e)
 check(('inject', 0x3567, b'\x09\x00') in ec, 'Auto Equip command: sends the MoAutoEquip packet')
 
-# EXP boosters: a new character uses one after the first storage collect, then the next one every hour
+# EXP boosters: always one on - a new one whenever none is active, at any level
 b, bc, bchar, _ = load_plugin('fnuk11', ['-mlgroup=G002'])
 inv = [None] * 13 + [{'name': 'Reverse Return Scroll', 'quantity': 5}, {'name': 'Exp Booster (400%) 1 hour', 'quantity': 3}]
 b.get_inventory = lambda: {'items': inv}
@@ -461,8 +461,15 @@ USE = ('inject', 0x704C, bytes([14]) + bytes.fromhex('310c0d15'))
 run(b)
 check(b.booster_due and USE not in bc, 'level 1: no EXP booster while the storage collect runs')
 b.booster_due = time.time() - 1
+b.collect_started = time.time() - 60
+buffs = {12345: {'name': 'Exp Booster (400%)'}}
+b.get_active_skills = lambda: buffs
 run(b)
-check(USE in bc, 'after the collect: uses the EXP booster of slot 14 with its item code')
+check(USE not in bc and 0 < b.booster_due - time.time() <= 30, 'a booster buff still on: none used, looks again in 30 s')
+buffs.clear()
+b.booster_due = time.time() - 1
+run(b)
+check(USE in bc, 'no booster on: uses the EXP booster of slot 14 with its item code')
 inv[14] = dict(inv[14], quantity=2)
 b.booster_used = (b.booster_used[0] - 10, 3)
 bc.clear()
@@ -477,7 +484,25 @@ inv[14] = None
 b.booster_due, b.booster_used = time.time() - 1, None
 bc.clear()
 run(b)
-check(b.booster_due == 0 and not got(bc, 'inject'), 'none left: stops using boosters')
+check(295 < b.booster_due - time.time() <= 300 and not got(bc, 'inject') and
+      sum('No EXP booster' in c[1] for c in got(bc, 'log')) == 1, 'none left: looks again every 5 min (said once)')
+b.booster_due = time.time() - 1
+run(b)
+check(sum('No EXP booster' in c[1] for c in got(bc, 'log')) == 1, 'still none: not said again')
+inv[14] = {'name': 'Exp Booster (400%) 1 hour', 'quantity': 1}
+b.booster_due = time.time() - 1
+bc.clear()
+run(b)
+check(USE in bc, 'boosters bought / collected later: used again at once')
+inv[14] = None
+b.booster_used = None
+# a higher level character (not new) uses them too
+c, cc, cchar, _ = load_plugin('fnuk12', ['-mlgroup=G002'])
+cchar['level'] = 60
+c.get_inventory = lambda: {'items': [None] * 13 + [{'name': 'Exp Booster (400%) 1 hour', 'quantity': 2}]}
+c.collect_started = time.time() - 60
+run(c, 2)
+check(('inject', 0x704C, bytes([13]) + bytes.fromhex('310c0d15')) in cc, 'level 60 character: uses a booster too')
 inv.append({'name': 'Exp Booster (400%) 3 hours', 'quantity': 1})
 b.handle_silkroad(0x704C, bytes([15]) + bytes.fromhex('310c0d16'))
 check(json.load(open(SH + 'macros.json'))['item_codes'] == {'Exp Booster (400%) 3 hours': '310c0d16'},
