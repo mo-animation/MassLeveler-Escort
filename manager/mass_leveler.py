@@ -1069,8 +1069,7 @@ class App:
                 self.add_active_items(menu, g, m, '%s plays with the group' % m.character)
                 self.add_item(menu, 'Restart character', self.restart_selected, g.state in RUNNING)
                 menu.add_separator()
-                self.add_spot_menu(menu, g, m)
-                self.add_bot_menu(menu, [m] if g.state in RUNNING else [])
+                self.add_bot_section(menu, [m] if g.state in RUNNING else [])
                 self.add_edit_items(menu, g, m)
                 menu.add_separator()
                 sub = tk.Menu(menu, tearoff=0)
@@ -1121,8 +1120,7 @@ class App:
                       g.state != 'done' and not g.escort)
         self.add_item(menu, 'Reset to pending', lambda: self.group_action('reset', g), not run)
         menu.add_separator()
-        self.add_spot_menu(menu, g, None)
-        self.add_bot_menu(menu, list(g.members) if run else [])
+        self.add_bot_section(menu, list(g.members) if run else [])
         self.add_edit_items(menu, g)
 
     def add_edit_items(self, menu, g, m=None):
@@ -1144,11 +1142,25 @@ class App:
             self.tree.item(target.gid, open=True)
             self.tree.selection_set(target.gid + '|' + m.character)
 
-    def add_bot_menu(self, menu, members):
-        """phBot's own Manager menu, as a submenu"""
+    def add_bot_menu(self, menu, members, short=False):
+        """phBot's own Manager menu, as a submenu (short: without the items add_bot_section shows outside it)"""
         sub = tk.Menu(menu, tearoff=0)
-        self.add_bot_items(sub, members)
+        self.add_bot_items(sub, members, short)
         menu.add_cascade(label='     phBot', menu=sub, foreground=DARK['fg'] if members else DARK['dim'])
+
+    def add_bot_section(self, menu, members):
+        """Escort mode: Auto Equip on its own, the everyday bot commands, then the rest of phBot's menu"""
+        it = lambda label, fn: self.add_item(menu, label, fn, bool(members))
+        it('Auto Equip (MoAutoEquip)', lambda: self.mgr.member_command(members, 'auto_equip'))
+        menu.add_separator()
+        it('Show', lambda: self.set_visible('bot', True, members))
+        it('Hide', lambda: self.set_visible('bot', False, members))
+        it('Show Client', lambda: self.set_visible('client', True, members))
+        it('Hide Client', lambda: self.set_visible('client', False, members))
+        it('Start Bot', lambda: self.mgr.member_command(members, 'start'))
+        it('Stop Bot', lambda: self.mgr.member_command(members, 'stop'))
+        it('Return Scroll', lambda: self.mgr.bot_command(members, 'return_scroll'))
+        self.add_bot_menu(menu, members, short=True)
 
     def add_auto_item(self, menu, members):
         """Standard: Auto start = the bot opens again whenever it closes by itself"""
@@ -1165,70 +1177,37 @@ class App:
         self.mgr.open_member(g, m)
         self.refresh(schedule=False)
 
-    # -------------------------------------------------- training spots
-    def add_spot_menu(self, menu, g, m):
-        run = g.state in RUNNING
-        sm = tk.Menu(menu, tearoff=0)
-        if m:
-            self.add_item(sm, "Use %s's position for levels..." % m.character, lambda: self.spot_here(g, m), run)
-        self.add_item(sm, 'Next spot (this one has no monsters)', lambda: self.mgr.next_spot(g), run)
-        self.add_item(sm, 'Mark this spot bad (never again)', lambda: self.mark_bad(g), run)
-        self.add_item(sm, 'Back to the first spot', lambda: self.mgr.first_spot(g), run)
-        sm.add_separator()
-        self.add_item(sm, 'Training plan...', lambda: PlanWindow(self, g))
-        menu.add_cascade(label='     Training spot', menu=sm)
-
-    def spot_here(self, g, m):
-        s = ml_core.phbot_status(self.mgr.bot_pid(m))
-        if not s or not s['in_game']:
-            messagebox.showinfo('MassLeveler', '%s is not in the game.' % m.character, parent=self.root)
-            return
-        area, _, _ = self.mgr.group_area(g)
-        default = '%d-%d' % (area['min_level'], area['max_level']) if area else '%d-%d' % (s['level'], s['level'] + 2)
-        text = simpledialog.askstring('Training spot', 'Use the spot where %s stands now (%d, %d)\nfor levels '
-                                      '(from-to):' % (m.character, s['x'], s['y']), initialvalue=default, parent=self.root)
-        if not text:
-            return
-        try:
-            lo, hi = sorted(int(v) for v in text.replace(' ', '').split('-'))
-        except ValueError:
-            messagebox.showwarning('Training spot', 'Write the levels like 35-36', parent=self.root)
-            return
-        self.mgr.add_custom_spot(s, lo, hi, groups=[x for x in self.mgr.groups if x.state in RUNNING])
-
-    def mark_bad(self, g):
-        area, spots, i = self.mgr.group_area(g)
-        if area and messagebox.askyesno('Training spot', 'Never use spot %d/%d of %s again (%s)?\nThe group moves to '
-                                        'the next spot.' % (i + 1, len(spots), area['name'], spots[i].get('src', 'plan')),
-                                        parent=self.root):
-            self.mgr.mark_spot_bad(g)
-
     # -------------------------------------------------- phBot Manager commands
-    def add_bot_items(self, menu, members):
-        """the phBot Manager menu, for these characters' bots (greyed out when none is running)"""
+    def add_bot_items(self, menu, members, short=False):
+        """the phBot Manager menu, for these characters' bots (greyed out when none is running).
+        short: leave out Show/Hide, Show/Hide Client, Start/Stop Bot, Auto Equip and Return Scroll"""
         on = bool(members)
         it = lambda m, label, fn: self.add_item(m, label, fn, on)
         cmd = lambda name, **kw: (lambda: self.mgr.bot_command(members, name, **kw))
         sep = menu.add_separator
         it(menu, 'Show Stats', lambda: StatsWindow(self, members))
         sep()
-        it(menu, 'Show', lambda: self.set_visible('bot', True, members))
-        it(menu, 'Hide', lambda: self.set_visible('bot', False, members))
-        sep()
-        it(menu, 'Show Client', lambda: self.set_visible('client', True, members))
-        it(menu, 'Hide Client', lambda: self.set_visible('client', False, members))
+        if not short:
+            it(menu, 'Show', lambda: self.set_visible('bot', True, members))
+            it(menu, 'Hide', lambda: self.set_visible('bot', False, members))
+            sep()
+            it(menu, 'Show Client', lambda: self.set_visible('client', True, members))
+            it(menu, 'Hide Client', lambda: self.set_visible('client', False, members))
         it(menu, 'Go Clientless', lambda: self.go_clientless(members))
         it(menu, 'Go Client...', lambda: self.go_client(members))
         sep()
-        if self.standard:       # the plugin is idle there: phBot's own Start / Stop, no Auto Equip
+        if short:
+            pass
+        elif self.standard:     # the plugin is idle there: phBot's own Start / Stop, no Auto Equip
             it(menu, 'Start Bot', cmd('start_bot'))
             it(menu, 'Stop Bot', cmd('stop_bot'))
+            sep()
         else:
             it(menu, 'Start Bot', lambda: self.mgr.member_command(members, 'start'))
             it(menu, 'Stop Bot', lambda: self.mgr.member_command(members, 'stop'))
             sep()
             it(menu, 'Auto Equip (MoAutoEquip)', lambda: self.mgr.member_command(members, 'auto_equip'))
-        sep()
+            sep()
         it(menu, 'Start Trace...', lambda: self.ask_then(members, 'start_trace', 'player', 'Player Name',
                                                          'Enter the name of the player to trace:'))
         it(menu, 'Stop Trace', cmd('stop_trace'))
@@ -1253,7 +1232,8 @@ class App:
                 it(am, '%s (%s)' % (kind.title(), 'CTF' if mode == 'ctf' else 'Points'), cmd('arena', kind=kind, mode=mode))
         menu.add_cascade(label='     Arena', menu=am, foreground=DARK['fg'] if on else DARK['dim'])
         sep()
-        it(menu, 'Return Scroll', cmd('return_scroll'))
+        if not short:
+            it(menu, 'Return Scroll', cmd('return_scroll'))
         it(menu, 'Reverse Return...', lambda: self.ask_then(members, 'reverse_return', 'target', 'Player Name',
                                                             'Enter the name of the party member to reverse return to:'))
         sep()

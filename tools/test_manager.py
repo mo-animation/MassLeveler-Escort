@@ -31,6 +31,8 @@ settings = {
     'disconnect_restart_seconds': 1,
     'accounts_csv': os.path.join(TMP, 'accounts.csv'), 'proxies_csv': os.path.join(TMP, 'proxies.csv'),
     'progress': os.path.join(TMP, 'progress.json'), 'skip': os.path.join(TMP, 'skip.json'),
+    'layout': os.path.join(TMP, 'layout.json'),     # never the real data/layout.json of this PC
+    'standard': {k: os.path.join(TMP, 'std0_' + k + '.json') for k in ('progress', 'skip', 'auto_start', 'layout')},
     'escort_solo_spot': {'name': 'Jangan gate', 'region': 24744, 'x': 6440, 'y': 838, 'z': -44},
 }
 OLD_PLAN = {'CH': os.path.join(ROOT, 'tools', 'test_plan.json')}     # the standard version's level plan
@@ -420,6 +422,7 @@ check([st['min_level'] for st in ml_core.load_settings(sp_path)['escort_stages']
 std = dict(settings, standard={'group_size': 2, 'launch_delay_seconds': 0.3, 'disconnect_restart_seconds': 0.5,
                                'progress': os.path.join(TMP, 'std_progress.json'),
                                'skip': os.path.join(TMP, 'std_skip.json'),
+                               'layout': os.path.join(TMP, 'std_layout.json'),
                                'auto_start': os.path.join(TMP, 'std_auto.json')})
 json.dump(std, open(os.path.join(TMP, 'settings_std.json'), 'w'))
 json.dump({'fnuk05': 'finished', 'fnuk06': 'finished'}, open(os.path.join(TMP, 'std_progress.json'), 'w'))
