@@ -717,6 +717,12 @@ def show_windows(pid, show):
     return len(wins)
 
 
+def windows_visible(pid):
+    """True when a main window of the process is shown, False when all are hidden, None without a window"""
+    wins = _windows_of(pid)
+    return any(ctypes.windll.user32.IsWindowVisible(h) for h in wins) if wins else None
+
+
 def hide_status_widgets():
     """the Elysian client opens a small LV / HP / MP / EXP window (class SRO_StatusWidget) of its own beside
     the game; hide every visible one. Returns how many were hidden."""
@@ -1506,6 +1512,12 @@ class Manager:
         self.log('%s %s window(s) of %s: %d' % ('Shown' if show else 'Hidden', what,
                                                 g.gid if g else ', '.join(m.character for m in members), n))
         return n
+
+    def client_shown(self, m):
+        """is the character's game client shown (True), hidden (False) or not there (None)"""
+        pid = (phbot_status(self.bot_pid(m)) or {}).get('client_pid', 0) if self.standard else \
+            self.files.status(m.character).get('client_pid', 0)
+        return windows_visible(pid) if pid else None
 
     def problems(self):
         p = []

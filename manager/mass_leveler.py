@@ -918,13 +918,20 @@ class App:
             self.tabs.add(self.map.frame, text='Map')
             self.tabs.bind('<<NotebookTabChanged>>', lambda e: self.map_shown() and self.map.show())
         self.img_on, self.img_off = box_image(True), box_image(False)
-        self.tree = ttk.Treeview(frame, columns=COLUMNS, selectmode='browse')
+        # Standard: many characters selected at once (drag over the rows, Ctrl / Shift + click, Ctrl+A)
+        self.tree = ttk.Treeview(frame, columns=COLUMNS, selectmode='extended' if self.standard else 'browse')
         self.tree.heading('#0', text='Group / character', anchor='w')
         self.tree.column('#0', width=170, stretch=False)
         self.tree.bind('<Button-1>', self.on_click)
-        self.tree.bind('<B1-Motion>', self.on_drag)          # drag a character onto another group
-        self.tree.bind('<ButtonRelease-1>', self.on_drop)
+        self.tree.bind('<B1-Motion>', self.on_drag)          # Mass: drag a character onto another group
+        self.tree.bind('<ButtonRelease-1>', self.on_drop)    # Standard: drag over rows = select them
         self.drag = None
+        self.scrub = None
+        if self.standard:
+            self.tree.bind('<Control-a>', lambda e: self.select_where('all') or 'break')
+            self.tree.bind('<Control-A>', lambda e: self.select_where('all') or 'break')
+            self.tree.bind('<Double-1>', self.on_double)
+            self.tree.bind('<<TreeviewSelect>>', lambda e: self.update_quick())
         self.tree.bind('<space>', lambda e: self.toggle(self.tree.focus()) or 'break')
         self.tree.bind('<Button-3>', self.on_menu)
         for c in COLUMNS:
@@ -932,6 +939,9 @@ class App:
             self.tree.column(c, width=WIDTHS[c], anchor='w', stretch=c == 'state')
         sb = ttk.Scrollbar(frame, orient='vertical', command=self.tree.yview)
         self.tree.configure(yscrollcommand=sb.set)
+        self.sel_buttons = []
+        if self.standard:
+            self.build_quick_bar(frame)
         self.tree.pack(side='left', fill='both', expand=True)
         sb.pack(side='right', fill='y')
         for tag, color in (('done', 'done'), ('bad', 'bad'), ('escort', 'escort'), ('skipped', 'dim')):
@@ -974,6 +984,133 @@ class App:
         m = next((x for x in g.all_members if x.character == char), None) if g and char else None
         return g, m
 
+    # -------------------------------------------------- Standard: many characters at once
+    def build_quick_bar(self, parent):
+        """buttons for the selected characters, and quick ways to select them"""
+        q = ttk.Frame(parent, padding=(0, 4, 0, 4))
+        q.pack(side='top', fill='x')
+        row = ttk.Frame(q)
+        row.pack(fill='x')
+        ttk.Label(row, text='Select:', foreground=DARK['dim'], width=9).pack(side='left')
+        for text, which in (('All', 'all'), ('Running', 'running'), ('Closed', 'closed'), ('Dead', 'dead'),
+                            ('None', 'none')):
+            ttk.Button(row, text=text, width=len(text) + 3, command=lambda w=which: self.select_where(w)).pack(
+                side='left', padx=(4, 0))
+        row = ttk.Frame(q)
+        row.pack(fill='x', pady=(4, 0))
+        self.lbl_sel = ttk.Label(row, foreground=DARK['dim'], width=22)
+        self.lbl_sel.pack(side='left')
+        for text, fn in (('Open', self.sel_open), ('Restart', self.sel_restart), ('Close', self.sel_close),
+                         ('Show', lambda: self.sel_visible('bot', True)), ('Hide', lambda: self.sel_visible('bot', False)),
+                         ('Show Client', lambda: self.sel_visible('client', True)),
+                         ('Hide Client', lambda: self.sel_visible('client', False)),
+                         ('Start Bot', lambda: self.sel_bot('start_bot')), ('Stop Bot', lambda: self.sel_bot('stop_bot'))):
+            b = ttk.Button(row, text=text, width=len(text) + 3, command=fn)
+            b.pack(side='left', padx=(4, 0))
+            self.sel_buttons.append(b)
+        self.update_quick()
+
+    def sel_pairs(self):
+        """(group, character) of every selected row; a group row = all its characters"""
+        out = []
+        for iid in self.tree.selection():
+            g, m = self.item(iid)
+            for x in ([m] if m else g.all_members if g else []):
+                if (g, x) not in out:
+                    out.append((g, x))
+        return out
+
+    def sel_alive(self):
+        return [m for g, m in self.sel_pairs() if self.mgr._alive(m)]
+
+    def update_quick(self):
+        if not self.standard:
+            return
+        pairs = self.sel_pairs()
+        alive = sum(1 for g, m in pairs if self.mgr._alive(m))
+        self.lbl_sel.config(text='%d selected (%d open)' % (len(pairs), alive) if pairs else 'Nothing selected')
+        for b in self.sel_buttons:
+            b.state(['!disabled'] if pairs else ['disabled'])
+
+    def select_where(self, which):
+        """Select: all / running (open) / closed / dead characters, or none"""
+        rows = []
+        for g in self.mgr.groups:
+            for m in g.all_members:
+                alive = self.mgr._alive(m)
+                if which == 'all' or (which == 'running' and alive) or \
+                        (which == 'closed' and not alive and not m.skip and g.state != 'skipped') or \
+                        (which == 'dead' and alive and (m.status or {}).get('dead')):
+                    rows.append(g.gid + '|' + m.character)
+        rows = [r for r in rows if self.tree.exists(r)]
+        for r in rows:
+            self.tree.item(r.partition('|')[0], open=True)
+        self.tree.selection_set(rows)
+        if rows:
+            self.tree.see(rows[0])
+        elif which != 'none':
+            self._log('Select %s: no character' % which)
+        self.update_quick()
+
+    def short_names(self, members, most=4):
+        return names(members[:most]) + (' and %d more' % (len(members) - most) if len(members) > most else '')
+
+    def sel_open(self):
+        todo = [(g, m) for g, m in self.sel_pairs() if not self.mgr._alive(m) and not m.skip]
+        for g, m in todo:
+            self.mgr.open_member(g, m)
+        if not todo:
+            self._log('Open: every selected character is open already (or skipped)')
+        self.refresh(schedule=False)
+
+    def sel_restart(self):
+        todo = [(g, m) for g, m in self.sel_pairs() if self.mgr._alive(m)]
+        if not todo:
+            self._log('Restart: no selected character is open')
+            return
+        if messagebox.askyesno('Restart', 'Close and reopen %d bot(s)?\n\n%s' % (
+                len(todo), self.short_names([m for g, m in todo])), parent=self.root):
+            for g, m in todo:
+                self.mgr.restart_member(g, m)
+
+    def sel_close(self):
+        alive = self.sel_alive()
+        if alive:
+            self.terminate(alive)
+        else:
+            self._log('Close: no selected character is open')
+
+    def sel_visible(self, what, show):
+        alive = self.sel_alive()
+        if alive:
+            self.set_visible(what, show, alive)
+
+    def sel_bot(self, cmd):
+        alive = self.sel_alive()
+        if alive:
+            self.mgr.bot_command(alive, cmd)
+
+    def on_double(self, e):
+        """double-click a character: show its game client, or hide it when it is shown"""
+        g, m = self.item(self.tree.identify_row(e.y))
+        if not m or not self.mgr._alive(m):
+            return
+        shown = self.mgr.client_shown(m)
+        if shown is None:
+            self._log('%s has no game client (clientless?)' % m.character)
+        else:
+            self.set_visible('client', not shown, [m])
+        return 'break'
+
+    def visible_rows(self):
+        """the rows in the order they are drawn (characters of folded groups left out)"""
+        rows = []
+        for gid in self.tree.get_children():
+            rows.append(gid)
+            if self.tree.item(gid, 'open'):
+                rows.extend(self.tree.get_children(gid))
+        return rows
+
     # -------------------------------------------------- tick boxes / right-click menu
     def on_click(self, e):
         iid = self.tree.identify_row(e.y)
@@ -981,6 +1118,12 @@ class App:
             self.tree.selection_set(iid)
             self.toggle(iid)
             return 'break'
+        if self.standard:
+            # drag from this row = select every row the mouse goes over (Ctrl / Shift + click: the tree's own)
+            plain = not (e.state & 0x0005)          # no Shift (1) / Control (4)
+            self.scrub = {'from': iid, 'y': e.y, 'on': False} if iid and plain and \
+                self.tree.identify_region(e.x, e.y) in ('tree', 'cell') else None
+            return
         g, m = self.item(iid)
         self.drag = {'m': m, 'y': e.y, 'on': False} if m and not g.escort else None
 
@@ -990,6 +1133,21 @@ class App:
         return self.item(self.tree.identify_row(y))[0]
 
     def on_drag(self, e):
+        if self.scrub:
+            if not self.scrub['on'] and abs(e.y - self.scrub['y']) < 4:
+                return 'break'
+            self.scrub['on'] = True
+            h = self.tree.winfo_height()
+            if e.y < 20:
+                self.tree.yview_scroll(-1, 'units')         # past the top / bottom: the list scrolls on
+            elif e.y > h - 5:
+                self.tree.yview_scroll(1, 'units')
+            here = self.tree.identify_row(min(max(e.y, 22), h - 3))
+            rows = self.visible_rows()
+            if here in rows and self.scrub['from'] in rows:
+                a, b = sorted((rows.index(self.scrub['from']), rows.index(here)))
+                self.tree.selection_set(rows[a:b + 1])
+            return 'break'
         if not self.drag:
             return
         if not self.drag['on'] and abs(e.y - self.drag['y']) > 6:
@@ -1001,6 +1159,10 @@ class App:
             return 'break'
 
     def on_drop(self, e):
+        if self.scrub:
+            self.scrub = None
+            self.update_quick()
+            return
         d, self.drag = self.drag, None
         if not d or not d['on']:
             return
@@ -1047,25 +1209,16 @@ class App:
             self.add_item(menu, 'All running groups (%d bots)' % len(running), None, False)
             menu.add_separator()
             self.add_bot_items(menu, running)
+        elif self.standard:
+            if iid not in self.tree.selection():     # a row outside the selection: that row alone (as Windows)
+                self.tree.selection_set(iid)
+            self.tree.focus(iid)
+            self.add_standard_items(menu, iid)
         else:
             self.tree.selection_set(iid)
             self.tree.focus(iid)
             g, m = self.item(iid)
-            if m and self.standard:
-                alive = self.mgr._alive(m)
-                self.add_active_items(menu, g, m, '%s opens with Start' % m.character)
-                self.add_auto_item(menu, [m])
-                self.add_item(menu, 'Open', lambda: self.open_member(g, m), not alive and not m.skip)
-                self.add_item(menu, 'Restart character', self.restart_selected, alive)
-                self.add_item(menu, 'Close', lambda: self.terminate([m]), alive)
-                menu.add_separator()
-                self.add_bot_menu(menu, [m] if alive else [])
-                self.add_edit_items(menu, g, m)
-                menu.add_separator()
-                sub = tk.Menu(menu, tearoff=0)
-                self.add_group_items(sub, g)
-                menu.add_cascade(label='     Group %s' % g.gid, menu=sub)
-            elif m:
+            if m:
                 self.add_active_items(menu, g, m, '%s plays with the group' % m.character)
                 self.add_item(menu, 'Restart character', self.restart_selected, g.state in RUNNING)
                 menu.add_separator()
@@ -1081,6 +1234,77 @@ class App:
             menu.tk_popup(e.x_root, e.y_root)
         finally:
             menu.grab_release()
+
+    def add_standard_items(self, menu, iid):
+        """Standard: everything for the selected characters at once, the everyday bot commands in the menu itself"""
+        pairs = self.sel_pairs()
+        members = [m for g, m in pairs]
+        alive = [m for m in members if self.mgr._alive(m)]
+        closed = [m for m in members if not self.mgr._alive(m) and not m.skip]
+        self.add_item(menu, '%d selected: %s' % (len(members), self.short_names(members)) if len(members) > 1 else
+                      members[0].character if members else 'No character', None, False)
+        menu.add_separator()
+        self.add_item(menu, 'Open', self.sel_open, bool(closed))
+        self.add_item(menu, 'Restart', self.sel_restart, bool(alive))
+        self.add_item(menu, 'Close', self.sel_close, bool(alive))
+        auto = bool(members) and all(m.character in self.mgr.auto for m in members)
+        menu.add_command(label=('✓   ' if auto else '     ') + 'Auto start  (opens again when it closes)',
+                         command=lambda: self.set_auto(members, not auto))
+        active = bool(members) and not any(m.skip for m in members)
+        skipped = bool(members) and all(m.skip for m in members)
+        menu.add_command(label=('✓   ' if active else '     ') + 'Active  (opens with Start)',
+                         command=lambda: self.set_active_many(pairs, True))
+        menu.add_command(label=('✓   ' if skipped else '     ') + 'Skip', command=lambda: self.set_active_many(pairs, False))
+        menu.add_separator()
+        it = lambda label, fn: self.add_item(menu, label, fn, bool(alive))
+        it('Show', lambda: self.set_visible('bot', True, alive))
+        it('Hide', lambda: self.set_visible('bot', False, alive))
+        it('Show Client', lambda: self.set_visible('client', True, alive))
+        it('Hide Client', lambda: self.set_visible('client', False, alive))
+        it('Start Bot', lambda: self.mgr.bot_command(alive, 'start_bot'))
+        it('Stop Bot', lambda: self.mgr.bot_command(alive, 'stop_bot'))
+        it('Return Scroll', lambda: self.mgr.bot_command(alive, 'return_scroll'))
+        self.add_bot_menu(menu, alive, short=True)
+        menu.add_separator()
+        mv = tk.Menu(menu, tearoff=0)
+        for g in self.mgr.groups:
+            if not g.escort:
+                self.add_item(mv, '%s  (%d)' % (g.gid, len(g.all_members)), lambda g=g: self.move_many(members, g))
+        mv.add_separator()
+        self.add_item(mv, 'New group', lambda: self.move_many(members, None))
+        menu.add_cascade(label='     Move to group', menu=mv, foreground=DARK['fg'] if members else DARK['dim'])
+        self.add_item(menu, 'Delete  (not shown again)', lambda: self.delete(members, self.short_names(members)),
+                      bool(members))
+        groups = {g.gid: g for g, m in pairs}
+        if len(groups) == 1:                # one group: what only a group has (the rest is above already)
+            g = next(iter(groups.values()))
+            menu.add_separator()
+            sub = tk.Menu(menu, tearoff=0)
+            self.add_item(sub, 'Mark finished', lambda: self.group_action('mark_done', g), g.state != 'done')
+            self.add_item(sub, 'Reset to pending', lambda: self.group_action('reset', g), g.state not in RUNNING)
+            menu.add_cascade(label='     Group %s' % g.gid, menu=sub)
+
+    def set_active_many(self, pairs, active):
+        for g, m in pairs:
+            if m.skip == active:
+                self.mgr.set_member_skip(g, m, not active)
+        self.refresh(schedule=False)
+
+    def move_many(self, members, target):
+        """the selected characters into a group (None = one new group for all of them)"""
+        moved = []
+        for m in members:
+            got = self.mgr.move_member(m, target)
+            if got:
+                moved.append(m)
+                target = got                # 'New group': the others follow the first one into it
+        self.rebuild_tree()
+        rows = [g.gid + '|' + m.character for m in moved for g in self.mgr.groups if m in g.all_members]
+        for r in rows:
+            self.tree.item(r.partition('|')[0], open=True)
+        self.tree.selection_set(rows)
+        if rows:
+            self.tree.see(rows[0])
 
     @staticmethod
     def add_item(menu, label, command, enabled=True):
@@ -1303,8 +1527,10 @@ class App:
             self.mgr.go_clientless(members)
 
     def terminate(self, members):
-        if messagebox.askyesno('Terminate', 'Close %s (bot and client)?\n\nThey stay closed until you use '
-                                            'Restart character / Restart group bots.' % names(members), parent=self.root):
+        if messagebox.askyesno('Terminate', 'Close %s%s (bot and client)?\n\nThey stay closed until you use '
+                                            'Restart character / Restart group bots.' % (
+                                                '%d bots: ' % len(members) if len(members) > 1 else '',
+                                                self.short_names(members)), parent=self.root):
             self.mgr.terminate(members)
 
     # -------------------------------------------------- buttons
@@ -1529,6 +1755,7 @@ class App:
         self.lbl_summary.config(text=' · '.join('%d %s' % (counts[k], k) for k in (
             'running', 'launching', 'pending', 'done', 'stopped', 'failed', 'skipped') if counts.get(k)))
         self.lbl_dot.config(foreground=DARK['done'] if self.mgr.running else DARK['dim'])
+        self.update_quick()
         if self.map_shown():
             self.map.refresh()
         if schedule:
