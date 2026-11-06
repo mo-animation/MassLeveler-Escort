@@ -2017,6 +2017,8 @@ class Manager:
             self.log('launch %s (%s): %s' % (m.character, m.role, ' '.join(masked(cmd[1:]))))
         except Exception as e:
             m.proc = None
+            if getattr(e, 'winerror', None) == 740:
+                e = 'phBot needs administrator rights - close MassLeveler Escort and open it with "Run as administrator"'
             g.message = 'launch failed: %s' % e
             self.log('launch %s failed: %s' % (m.character, e))
 

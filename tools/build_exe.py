@@ -33,6 +33,9 @@ def main():
     except ImportError:
         icon_args = []
     cmd = [sys.executable, '-m', 'PyInstaller', '--noconfirm', '--onefile', '--windowed', '--name', NAME,
+           # phBot.exe requires administrator: a dashboard that isn't elevated cannot open it (WinError 740), e.g.
+           # when Update opens it again
+           '--uac-admin',
            '--paths', os.path.join(ROOT, 'manager'),
            # used by tools/make_builds.py, which the dashboard loads from disk
            '--hidden-import', 'argparse', '--hidden-import', 'glob', '--hidden-import', 'sqlite3',
