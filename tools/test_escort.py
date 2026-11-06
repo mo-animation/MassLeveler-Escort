@@ -545,6 +545,101 @@ bc.clear()
 run(b)
 check(not got(bc, 'inject'), 'option off: no boosters')
 
+# ---------------------------------------------------------------- members hunt at the escort's spot (no trace)
+e.last_status = 0
+run(e)
+est = json.load(open(SH + 'status/wiz01.json'))
+check('phase' in est and est.get('radius') == 40.0, 'the escort\'s status has its phase and radius')
+
+
+def esc_hunting(stage, phase='hunt', x=None, y=None, ts=None, town_wait=False):
+    json.dump({'name': 'wiz01', 'level': 100, 'x': stage['x'] if x is None else x, 'y': stage['y'] if y is None else y,
+               'dead': False, 'state': 'leveling', 'ts': time.time() if ts is None else ts, 'town_wait': town_wait,
+               'phase': phase, 'area': stage['name'], 'radius': 55.0}, open(SH + 'status/wiz01.json', 'w'))
+
+
+h, hc, hchar, hzone = load_plugin('fnuk10', ['-mlgroup=G002'])
+check(KARRA.get('attack') and not KARRA.get('free') and WING.get('attack') and not WING.get('free'),
+      'Karra and Wing are attacking stages (test data)')
+status('fnuk09', 55, KARRA['x'], KARRA['y'])
+hchar.update(level=55, x=KARRA['x'] + 30, y=KARRA['y'])
+hzone['name'] = 'Fertility Temple'
+esc_hunting(KARRA, phase='gather', x=KARRA['x'] + 20)
+run(h, 2)
+check(got(hc, 'trace') and not h.hunt_stage and not got(hc, 'pos'), 'escort still gathering the group: the member traces it')
+esc_hunting(KARRA, x=KARRA['x'] + 20)
+hc.clear()
+run(h)
+check(h.hunt_stage and got(hc, 'stop_trace') and not h.tracing and
+      ('pos', (KARRA['region'], float(KARRA['x']), float(KARRA['y']), float(KARRA['z']))) in hc and
+      ('radius', 55.0) in hc and h.bot_started and 'hunting at' in h.message,
+      'the escort hunts: the member stops tracing, bots at the escort\'s spot with the escort\'s radius')
+hc.clear()
+run(h, 3)
+check(not got(hc, 'pos') and not got(hc, 'trace'), 'keeps botting (no restart every tick)')
+esc_hunting(KARRA, x=9000.0, y=9000.0)
+hc.clear()
+run(h, 2)
+check(not got(hc, 'trace') and not got(hc, 'reverse') and h.hunt_stage, 'escort far away: keeps hunting alone, no trace')
+# dies, not resurrected: town, then the bot walks back by itself
+hchar['dead'] = True
+run(h)
+check(not h.bot_started, 'dead: the bot counts as stopped (phBot stops it)')
+h.dead_since = time.time() - h.MEMBER_RES_WAIT - 1
+hc.clear()
+run(h)
+check(('inject', 0x3053, b'\x01') in hc and h.last_respawn, 'dead 2 minutes: respawns in town')
+hchar.update(dead=False, x=JANGAN[0], y=JANGAN[1])
+hzone['name'] = 'Jangan'
+hc.clear()
+run(h)
+check(not got(hc, 'pos') and 'respawning' in h.message, 'just respawned: waits for the teleport to town first')
+h.last_respawn -= 16
+hc.clear()
+run(h)
+check(got(hc, 'pos') and ('radius', 55.0) in hc and h.bot_started and not got(hc, 'reverse') and not got(hc, 'trace')
+      and any('walks there from town' in c[1] for c in got(hc, 'log')),
+      'in town: bot started at the escort\'s spot, it walks there (no reverse, no trace)')
+esc_hunting(KARRA, ts=0)
+hc.clear()
+run(h, 2)
+check(h.hunt_stage and not got(hc, 'trace') and not got(hc, 'pos'), 'escort not in game: keeps hunting there')
+# resurrected where it died: the bot starts again at once
+hchar.update(dead=True, x=KARRA['x'], y=KARRA['y'])
+hzone['name'] = 'Fertility Temple'
+run(h)
+hchar['dead'] = False
+hc.clear()
+run(h)
+check(got(hc, 'pos') and h.bot_started and not got(hc, 'inject'), 'resurrected in place: bot started again')
+# the escort waits in town (died 3 times): bot off, back to town like the others
+esc_hunting(KARRA, x=JANGAN[0], y=JANGAN[1], town_wait=True)
+h.last_return = 0
+hc.clear()
+run(h)
+check(not h.hunt_stage and got(hc, 'stop_bot') and got(hc, 'return') and not h.bot_started,
+      'escort waits in town: stops hunting, return scroll to it')
+esc_hunting(KARRA)
+run(h)
+check(h.hunt_stage, 'the escort hunts again: back to hunting')
+# the group moves on: reverse to the next stage, trace the escort until it hunts there
+status('fnuk09', WING['min_level'], KARRA['x'], KARRA['y'])
+hchar['level'] = WING['min_level']
+esc_hunting(WING, phase='travel')
+h.last_reverse = 0
+hc.clear()
+run(h)
+check(not h.hunt_stage and got(hc, 'stop_bot') and got(hc, 'reverse') == [('reverse', 3, WING['reverse'])],
+      'next stage: stops hunting at Karra, reverse to %s' % WING['name'])
+# a stage without attack (Penon): trace as before, even while the escort hunts there
+status('fnuk09', 33, PENON['x'], PENON['y'])
+hchar.update(level=33, x=PENON['x'], y=PENON['y'])
+esc_hunting(PENON)
+h.tracing = False
+hc.clear()
+run(h)
+check(not h.hunt_stage and got(hc, 'trace') and not got(hc, 'pos'), 'stage without attack: traces the escort as before')
+
 import shutil  # noqa: E402
 shutil.rmtree(TMP, ignore_errors=True)
 print('\n%d failure(s)' % len(failures))

@@ -47,7 +47,7 @@ import struct
 import time
 
 pName = 'MassLeveler'
-pVersion = '2.9.1-escort'
+pVersion = '2.10.0-escort'
 
 LEARN_SECONDS = 10
 IGNORE_OPCODES = {0x2002, 0x7021, 0x7074, 0x7034}   # ping, movement, attack/skill, inventory move
@@ -143,6 +143,8 @@ trace_fails = 0              # start_trace refused this many times in a row
 last_reverse = 0.0
 dead_since = 0.0
 death_back = False           # member: respawned in town at once, reverse to the death point next
+hunt_stage = None            # member: (name, x, y) of the stage where it bots at the escort's spot (no trace)
+last_respawn = 0.0           # member: last respawn-in-town packet (the bot starts once the teleport is done)
 solo_active = False          # member: leveling alone below the group's solo_level (no party yet)
 esc ={'key': None, 'phase': 'travel', 'gather_since': 0.0, 'death_pending': False, 'respawned': False, 'respawn_at': 0.0,
       'deaths': [], 'regroup': False}
@@ -1073,6 +1075,8 @@ def write_status(d):
           'collected_levels': sorted(collected_levels), 'booster_due': booster_due, 'profile': profile_name, 'zerk_uses': zerk_uses,
           'attack_skills': len(applied_skills[1]['sNormal']) if applied_skills else 0,
           'build': (my_build() or {}).get('id', '')}
+    if group and group.get('escort'):     # the members bot at its spot with its radius once it hunts there
+        st.update(phase=esc['phase'], radius=float(group.get('radius', 40)))
     try:
         st['client_pid'] = (get_client() or {}).get('pid', 0)
     except Exception:
@@ -1268,10 +1272,25 @@ def stop_tracing():
     tracing = False
 
 
+def end_hunt(why):
+    """member: leave the escort's spot (bot off); it reverses / traces the escort again"""
+    global hunt_stage, bot_started
+    if hunt_stage:
+        _log('Stop hunting at %s: %s' % (hunt_stage[0], why))
+        try:
+            stop_bot()
+        except Exception:
+            pass
+        bot_started = False
+    hunt_stage = None
+
+
 def member_escort_tick(d, lvl, gmin, now, cmd):
-    """a group member: reverse to the stage, then bot-trace the escort (it waits for everyone there)"""
+    """a group member: reverse to the stage, then bot-trace the escort (it waits for everyone there). Once the
+    escort hunts at an attacking stage, the member bots there itself (the escort's spot and radius, no trace): after
+    dying it walks back alone, with or without the escort near"""
     global tracing, trace_started, trace_far_since, dead_since, current_area, solo_active, bot_started, current_spot, \
-        death_back, last_reverse, last_return, trace_fails
+        death_back, last_reverse, last_return, trace_fails, hunt_stage, last_respawn
     stage = stage_for(gmin)
     if not stage:
         _set_state('error', 'no escort stages in the group file')
@@ -1301,12 +1320,13 @@ def member_escort_tick(d, lvl, gmin, now, cmd):
         death_back = False                # out of town: trace the escort again as usual
     if d.get('dead'):
         tracing = False
+        bot_started = False               # phBot stops its bot on death: started again once alive
         dead_since = dead_since or now
         if now - dead_since > MEMBER_RES_WAIT or (esc_waits and now - dead_since > 2):
             _log('Dead for %d s and not resurrected - respawn in town' % (now - dead_since) if not esc_waits
                  else 'Dead and the escort waits in town - respawn in town')
             inject_joymax(0x3053, b'\x01', False)
-            dead_since = now
+            dead_since = last_respawn = now
         _set_state('leveling', 'dead - waiting for a resurrect')
         return
     dead_since = 0.0
@@ -1325,6 +1345,33 @@ def member_escort_tick(d, lvl, gmin, now, cmd):
         except Exception:
             pass
         bot_started = False
+    key = (stage['name'], stage.get('x'), stage.get('y'))
+    if hunt_stage and hunt_stage != key:
+        end_hunt('the group moves to %s' % stage['name'] if hunt_stage[0] != stage['name'] else 'its spot changed')
+    elif hunt_stage and esc_waits:
+        end_hunt('the escort waits in town')
+    if not hunt_stage and stage.get('attack') and not stage.get('free') and not esc_waits and escort and \
+            escort.get('phase') == 'hunt' and escort.get('area') == stage['name']:
+        hunt_stage = key
+        bot_started = False
+        _log('The escort %s hunts at %s - botting there too (its spot, radius %s), no trace' % (
+            group['escort_name'], stage['name'], escort.get('radius', group.get('radius', 40))))
+    if hunt_stage:
+        if now - last_respawn < 15:
+            _set_state('leveling', 'respawning in town')
+            return                        # the teleport to town first, then the bot walks back
+        if cmd == 'start' or not bot_started:
+            stop_tracing()
+            try:
+                stop_trace()              # phBot does not bot while a trace is on
+            except Exception:
+                pass
+            apply_stage_point(stage, (escort or {}).get('radius'))
+            restart_bot()
+            _log('Bot started at %s (%d, %d)%s' % (stage['name'], stage['x'], stage['y'],
+                                                    ' - walks there from town' if in_town(d) else ''))
+        _set_state('leveling', 'lv %d, group lowest %d - hunting at %s (the escort\'s spot)' % (lvl, gmin, stage['name']))
+        return
     current_area = stage['name']
     me = get_position() or {'x': d.get('x', 0), 'y': d.get('y', 0)}
     if esc_waits and not in_town(d):
@@ -1377,12 +1424,14 @@ def member_escort_tick(d, lvl, gmin, now, cmd):
         _set_state('leveling', 'at %s, waiting for the escort %s' % (stage['name'], group['escort_name']))
 
 
-def apply_stage_point(stage):
+def apply_stage_point(stage, radius=None):
+    """training point = the stage's spot; radius: the group's, or the escort's for a member"""
     global current_area
+    radius = float(radius or group.get('radius', 40))
     set_training_position(int(stage.get('region', 0)), float(stage['x']), float(stage['y']), float(stage.get('z', 0)))
-    set_training_radius(float(group.get('radius', 40)))
+    set_training_radius(radius)
     current_area = stage['name']
-    QtBind.setText(gui, lblArea, 'Area: %s (%d, %d) radius %d' % (stage['name'], stage['x'], stage['y'], group.get('radius', 40)))
+    QtBind.setText(gui, lblArea, 'Area: %s (%d, %d) radius %d' % (stage['name'], stage['x'], stage['y'], radius))
 
 
 def escort_tick(d, now, cmd):
