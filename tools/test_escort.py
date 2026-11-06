@@ -639,6 +639,51 @@ h.tracing = False
 hc.clear()
 run(h)
 check(not h.hunt_stage and got(hc, 'trace') and not got(hc, 'pos'), 'stage without attack: traces the escort as before')
+# phBot keeps refusing the trace at an attacking stage, the escort still gathering: the member walks to the spot itself
+status('fnuk09', WING['min_level'], WING['x'], WING['y'])
+hchar.update(level=WING['min_level'], x=WING['x'] + 15, y=WING['y'] - 62)
+hzone['name'] = 'Mt. Roc field'
+esc_hunting(WING, phase='gather', x=WING['x'] + 2, y=WING['y'] - 1)
+h.start_trace = lambda n: hc.append(('trace', n)) and False
+h.tracing, h.trace_fails, h.trace_started = False, 0, 0
+hc.clear()
+run(h)
+for _ in range(2):
+    h.trace_started -= 6
+    run(h)
+check(len(got(hc, 'trace')) == 3 and h.hunt_stage and h.hunt_stage[0] == WING['name'] and
+      any('Trace refused 3 times' in c[1] for c in got(hc, 'log')), 'trace refused 3 times at an attacking stage: hunts there')
+hc.clear()
+run(h)
+check(('pos', (WING['region'], float(WING['x']), float(WING['y']), float(WING['z']))) in hc and ('radius', 55.0) in hc and
+      h.bot_started and not got(hc, 'trace'), 'its bot walks to the stage spot (escort radius), no more trace tries')
+h.start_trace = lambda n: hc.append(('trace', n)) or True
+status('fnuk09', 33, PENON['x'], PENON['y'])
+hchar.update(level=33, x=PENON['x'], y=PENON['y'])
+esc_hunting(PENON, phase='gather')
+h.start_trace = lambda n: hc.append(('trace', n)) and False
+h.tracing, h.trace_started = False, 0
+hc.clear()
+run(h)
+for _ in range(3):
+    h.trace_started -= 6
+    run(h)
+check(not h.hunt_stage and len(got(hc, 'trace')) == 4 and h.trace_fails == 4,
+      'stage without attack: keeps trying the trace (no hunting there); the count starts again after hunting')
+
+# the escort gathering: a member at the stage's spot counts as here too, not only one by the escort
+json.dump({'group': 'G003', 'members': ['fnuk17', 'fnuk18'], 'leader': 'fnuk17'}, open(SH + 'escort.json', 'w'))
+e2, ec2, echar2, ezone2 = load_plugin('wiz01', ['-mlgroup=ESCORT'])
+echar2.update(level=100, x=KARRA['x'] - 5, y=KARRA['y'] + 40)
+ezone2['name'] = 'Fertility Temple'
+status('fnuk17', 55, KARRA['x'] - 3, KARRA['y'] + 45)          # by the escort
+status('fnuk18', 55, KARRA['x'] + 60, KARRA['y'] - 30)         # 67 from the spot, 120 from the escort
+run(e2)
+check(e2.esc['phase'] == 'gather' and 'starting in' in e2.message,
+      'a member at the stage spot (120 from the escort) counts as here: %s' % e2.message)
+status('fnuk18', 55, KARRA['x'] + 160, KARRA['y'])             # 160 from the spot and the escort
+run(e2)
+check('1/2 here' in e2.message, 'a member far from both: still waited for')
 
 import shutil  # noqa: E402
 shutil.rmtree(TMP, ignore_errors=True)

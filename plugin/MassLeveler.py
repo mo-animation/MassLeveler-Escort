@@ -47,7 +47,7 @@ import struct
 import time
 
 pName = 'MassLeveler'
-pVersion = '2.10.0-escort'
+pVersion = '2.10.1-escort'
 
 LEARN_SECONDS = 10
 IGNORE_OPCODES = {0x2002, 0x7021, 0x7074, 0x7034}   # ping, movement, attack/skill, inventory move
@@ -80,6 +80,7 @@ STAGE_NEAR = 400.0          # this close to the stage point a reverse would not 
 TRACE_LOST = 60.0           # tracing but this far from the escort for TRACE_RETRY seconds: start the trace again
 TRACE_RETRY = 20.0
 TRACE_FAIL_WAIT = 5.0       # phBot refused the trace: try again after this
+TRACE_FAILS_HUNT = 3        # refused this often in a row at an attacking stage: bot at the stage's spot instead
 STATUS_FRESH = 30.0         # an escort status older than this: the escort is not in game
 MEMBER_RES_WAIT = 120.0     # dead member not resurrected (by the escort or the party) this long: town
 ESCORT_RES_WAIT = 2.0       # dead escort: town after this, then reverse straight to its death point
@@ -1274,7 +1275,8 @@ def stop_tracing():
 
 def end_hunt(why):
     """member: leave the escort's spot (bot off); it reverses / traces the escort again"""
-    global hunt_stage, bot_started
+    global hunt_stage, bot_started, trace_fails
+    trace_fails = 0
     if hunt_stage:
         _log('Stop hunting at %s: %s' % (hunt_stage[0], why))
         try:
@@ -1412,7 +1414,14 @@ def member_escort_tick(d, lvl, gmin, now, cmd):
                     group['escort_name'], 'started' if tracing else 'FAILED%s' % (
                         ' %d times in a row' % trace_fails if trace_fails > 1 else ''),
                     stage['name'], 'on' if stage.get('attack') else 'off'))
-        _set_state('leveling', 'lv %d, group lowest %d - tracing %s at %s' % (lvl, gmin, group['escort_name'], stage['name']))
+            if not tracing and trace_fails >= TRACE_FAILS_HUNT and stage.get('attack') and not free:
+                # phBot keeps refusing the trace: walk to the stage's spot and hunt there, as once the escort hunts
+                hunt_stage, bot_started = key, False
+                _log('Trace refused %d times - botting at %s (the escort\'s spot) instead' % (trace_fails, stage['name']))
+                _set_state('leveling', 'trace refused - going to hunt at %s' % stage['name'])
+                return
+        _set_state('leveling', 'lv %d, group lowest %d - %s %s at %s' % (
+            lvl, gmin, 'tracing' if tracing else 'trace refused, trying again:', group['escort_name'], stage['name']))
         return
     stop_tracing()
     if free:
@@ -1541,8 +1550,10 @@ def escort_tick(d, now, cmd):
         if not names:
             _set_state('leveling', 'waiting for a group at %s' % stage['name'])
             return
-        here = [n for n in names if (lambda st: st and not st.get('dead') and dist(me, st) <= float(group.get('gather', 60)))(
-            fresh_status(n))]
+        # here: by the escort, or at the stage's spot (a member that could not trace walks there itself)
+        near = float(group.get('gather', 60))
+        here = [n for n in names if (lambda st: st and not st.get('dead') and (
+            dist(me, st) <= near or dist(stage, st) <= float(group.get('radius', 40)) + near))(fresh_status(n))]
         if gmin < int(group.get('solo_level', 5)):
             esc['gather_since'] = 0.0
             _set_state('leveling', 'waiting at %s: the group levels alone to %d first (lowest %d)' % (
